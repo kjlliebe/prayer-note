@@ -842,8 +842,8 @@
 <script>
     // --- Data Management ---
     let prayers = JSON.parse(localStorage.getItem('prayerNoteData')) || [];
-    let gasUrl = localStorage.getItem('prayerNoteGasUrl') || '';
-    let gasToken = localStorage.getItem('prayerNoteGasToken') || '';
+    let gasUrl = localStorage.getItem('scriptUrl') || '';
+    let gasToken = localStorage.getItem('secretToken') || '';
     let lastSync = localStorage.getItem('prayerNoteLastSync') || '';
     let currentFilter = '전체';
     let calendarDate = new Date();
@@ -883,7 +883,10 @@
     }
 
     async function fetchDataFromGAS() {
-        if (!gasUrl) return;
+        if (!gasUrl) {
+            renderHome();
+            return;
+        }
         showLoading(true);
         try {
             const response = await fetch(`${gasUrl}?action=get&token=${encodeURIComponent(gasToken)}`);
@@ -898,10 +901,12 @@
             } else {
                 console.error('GAS Fetch Error:', result.message);
                 updateSyncStatus(false);
+                renderHome(); // Fallback to local data
             }
         } catch (error) {
             console.error('GAS Fetch Error:', error);
             updateSyncStatus(false);
+            renderHome(); // Fallback to local data
         } finally {
             showLoading(false);
         }
@@ -953,12 +958,23 @@
             alert('올바른 URL 형식이 아닙니다.');
             return;
         }
-        gasUrl = url;
-        gasToken = token;
-        localStorage.setItem('prayerNoteGasUrl', url);
-        localStorage.setItem('prayerNoteGasToken', token);
-        alert('설정이 저장되었습니다.');
-        if (gasUrl) fetchDataFromGAS();
+        
+        // Save to localStorage
+        localStorage.setItem('scriptUrl', url);
+        localStorage.setItem('secretToken', token);
+        
+        // Verification check
+        const savedUrl = localStorage.getItem('scriptUrl');
+        const savedToken = localStorage.getItem('secretToken');
+        
+        if (savedUrl === url && savedToken === token) {
+            gasUrl = url;
+            gasToken = token;
+            alert('설정이 성공적으로 저장되었습니다.');
+            if (gasUrl) fetchDataFromGAS();
+        } else {
+            alert('설정 저장 중 오류가 발생했습니다. 다시 시도해주세요.');
+        }
     }
 
     function syncData() {
@@ -1557,11 +1573,19 @@
         renderHeaderDate();
         document.getElementById('add-start-date').value = new Date().toISOString().split('T')[0];
         
-        if (gasUrl) {
+        // Render home immediately to satisfy "바로 홈 화면으로 시작"
+        renderHome();
+        
+        // Check if both scriptUrl and secretToken are stored
+        const storedUrl = localStorage.getItem('scriptUrl');
+        const storedToken = localStorage.getItem('secretToken');
+        
+        if (storedUrl && storedToken) {
+            gasUrl = storedUrl;
+            gasToken = storedToken;
             fetchDataFromGAS();
         } else {
-            renderHome();
-            // First time setup notice
+            // First time setup notice - only if not already configured
             setTimeout(() => {
                 if (confirm('Google Sheets와 연동하여 데이터를 안전하게 보관하시겠습니까? 설정 화면으로 이동합니다.')) {
                     document.querySelector('.nav-item[data-screen="settings-screen"]').click();
