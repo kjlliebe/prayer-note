@@ -171,7 +171,7 @@
             content: '';
             position: absolute;
             top: 10px;
-            right: 10px;
+            right: 40px; /* Moved left to avoid overlap with detail icon */
             width: 18px;
             height: 18px;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23D4AF37'%3E%3Cpath d='M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z'/%3E%3C/svg%3E");
@@ -861,12 +861,26 @@
     }
 
     async function syncToGAS() {
-        if (!gasUrl) return;
+        const storedUrl = localStorage.getItem('scriptUrl');
+        const storedToken = localStorage.getItem('secretToken');
+        
+        if (!storedUrl || !storedToken) {
+            console.log('GAS Sync skipped: scriptUrl or secretToken missing in localStorage');
+            return;
+        }
+
+        gasUrl = storedUrl;
+        gasToken = storedToken;
+
+        console.log('Attempting to sync to GAS...');
+        console.log('URL:', gasUrl);
+        console.log('Token:', gasToken);
+        console.log('Data count:', prayers.length);
+
         try {
-            // Using a simple form-like POST or a fetch that GAS can handle
-            // GAS doesn't support complex CORS preflight well, so we use a simple request
             const response = await fetch(gasUrl, {
                 method: 'POST',
+                mode: 'no-cors', // Requested to bypass CORS issues
                 body: JSON.stringify({ 
                     action: 'sync', 
                     token: gasToken,
@@ -874,11 +888,14 @@
                 })
             });
             
-            // GAS redirects can be tricky with fetch, but usually it works if the script is set up right
+            console.log('GAS Sync fetch request sent (mode: no-cors)');
+            // Note: In no-cors mode, we cannot read the response body or status.
+            // We assume success if no network error occurred.
             updateSyncStatus(true);
         } catch (error) {
             console.error('GAS Sync Error:', error);
             updateSyncStatus(false);
+            alert('저장 실패');
         }
     }
 
@@ -1291,8 +1308,8 @@
                  onclick="handleCardClick(event, '${p.id}')">
                 <div class="card-header">
                     <span class="category-badge">${p.category}</span>
-                    <span class="detail-trigger" style="font-size: 0.8rem; color: var(--primary-gold); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 2px;">
-                        <svg class="icon-inline" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>상세보기
+                    <span class="detail-trigger" style="cursor: pointer; display: flex; align-items: center; justify-content: center; position: absolute; top: 12px; right: 12px; width: 32px; height: 32px;">
+                        <svg class="icon-inline" viewBox="0 0 24 24" style="width: 22px; height: 22px; fill: var(--primary-gold);"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                     </span>
                 </div>
                 <div class="card-title">${p.title}</div>
