@@ -171,7 +171,7 @@
             content: '';
             position: absolute;
             top: 10px;
-            right: 40px; /* Moved left to avoid overlap with detail icon */
+            right: 10px;
             width: 18px;
             height: 18px;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23D4AF37'%3E%3Cpath d='M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z'/%3E%3C/svg%3E");
@@ -761,14 +761,10 @@
         <div class="settings-group">
             <label class="settings-label">Google Apps Script 웹앱 URL</label>
             <input type="text" id="gas-url-input" class="settings-input" placeholder="https://script.google.com/macros/s/.../exec">
-            
-            <label class="settings-label" style="margin-top: 15px;">보안 토큰 (Secret Token)</label>
-            <input type="password" id="gas-token-input" class="settings-input" placeholder="보안을 위해 사용할 토큰을 입력하세요">
-            
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px; margin-top: 10px;">
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px;">
                 1. Google Sheets 생성 후 시트명을 <b>기도목록</b>으로 변경<br>
                 2. Apps Script 작성 및 '웹앱'으로 배포 (액세스: 모든 사용자)<br>
-                3. 배포된 URL과 설정한 보안 토큰을 위 칸에 입력하세요.
+                3. 배포된 URL을 위 칸에 입력하세요.
             </p>
             <div style="display: flex; gap: 8px;">
                 <button class="btn-primary" style="flex: 1;" onclick="saveGasUrl()">설정 저장</button>
@@ -776,14 +772,11 @@
             </div>
             
             <div id="sync-status-container" style="margin-top: 20px; border-top: 1px solid var(--beige-dark); padding-top: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-weight: 600; font-size: 0.9rem;">동기화 상태</span>
                     <span id="sync-status-badge" class="status-badge status-offline">연결 안됨</span>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <button class="btn-outline" onclick="fetchDataFromGAS()">데이터 불러오기</button>
-                    <button class="btn-outline" onclick="syncToGAS()">데이터 올리기</button>
-                </div>
+                <button class="btn-outline" onclick="syncData()">지금 동기화</button>
                 <p id="last-sync-time" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; text-align: center;">
                     마지막 동기화: 없음
                 </p>
@@ -845,8 +838,7 @@
 <script>
     // --- Data Management ---
     let prayers = JSON.parse(localStorage.getItem('prayerNoteData')) || [];
-    let gasUrl = localStorage.getItem('scriptUrl') || '';
-    let gasToken = localStorage.getItem('secretToken') || '';
+    let gasUrl = localStorage.getItem('prayerNoteGasUrl') || '';
     let lastSync = localStorage.getItem('prayerNoteLastSync') || '';
     let currentFilter = '전체';
     let calendarDate = new Date();
@@ -864,82 +856,40 @@
     }
 
     async function syncToGAS() {
-        const storedUrl = localStorage.getItem('scriptUrl');
-        const storedToken = localStorage.getItem('secretToken');
-        
-        if (!storedUrl || !storedToken) {
-            console.log('GAS Sync skipped: scriptUrl or secretToken missing in localStorage');
-            return;
-        }
-
-        gasUrl = storedUrl;
-        gasToken = storedToken;
-
-        console.log('--- GAS Sync (POST) Start ---');
-        console.log('URL:', gasUrl);
-        console.log('Data count:', prayers.length);
-
-        showLoading(true);
+        if (!gasUrl) return;
         try {
-            // mode: 'no-cors' is used to bypass CORS preflight.
-            // Data is sent, but we can't read the response.
-            await fetch(gasUrl, {
+            // Using a simple form-like POST or a fetch that GAS can handle
+            // GAS doesn't support complex CORS preflight well, so we use a simple request
+            const response = await fetch(gasUrl, {
                 method: 'POST',
-                mode: 'no-cors',
-                cache: 'no-cache',
-                body: JSON.stringify({ 
-                    action: 'sync', 
-                    token: gasToken,
-                    data: prayers 
-                })
+                body: JSON.stringify({ action: 'sync', data: prayers })
             });
             
-            console.log('GAS Sync: Request sent.');
-            lastSync = new Date().toLocaleString();
-            localStorage.setItem('prayerNoteLastSync', lastSync);
+            // GAS redirects can be tricky with fetch, but usually it works if the script is set up right
             updateSyncStatus(true);
-            alert('데이터를 구글 시트로 전송했습니다. (전송 완료)');
         } catch (error) {
             console.error('GAS Sync Error:', error);
             updateSyncStatus(false);
-            alert('저장 실패: 네트워크 상태를 확인해주세요.');
-        } finally {
-            showLoading(false);
         }
     }
 
     async function fetchDataFromGAS() {
-        if (!gasUrl) {
-            renderHome();
-            return;
-        }
+        if (!gasUrl) return;
         showLoading(true);
-        console.log('--- GAS Fetch Start ---');
         try {
-            const fetchUrl = `${gasUrl}?action=get&token=${encodeURIComponent(gasToken)}&t=${Date.now()}`;
-            const response = await fetch(fetchUrl);
-            
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            
+            const response = await fetch(`${gasUrl}?action=get`);
             const result = await response.json();
-            console.log('GAS Fetch Result:', result.status);
-
             if (result.status === 'success') {
-                prayers = result.data || [];
+                prayers = result.data;
                 localStorage.setItem('prayerNoteData', JSON.stringify(prayers));
                 updateSyncStatus(true);
                 renderHome();
                 renderAnswered();
                 renderCalendar();
-            } else {
-                console.error('GAS Business Logic Error:', result.message);
-                updateSyncStatus(false);
-                renderHome(); 
             }
         } catch (error) {
-            console.error('GAS Fetch Network/Parsing Error:', error);
+            console.error('GAS Fetch Error:', error);
             updateSyncStatus(false);
-            renderHome(); 
         } finally {
             showLoading(false);
         }
@@ -947,22 +897,21 @@
 
     async function testConnection() {
         const url = document.getElementById('gas-url-input').value.trim();
-        const token = document.getElementById('gas-token-input').value.trim();
         if (!url) return alert('URL을 먼저 입력해주세요.');
         
         showLoading(true);
         try {
-            const response = await fetch(`${url}?action=get&token=${encodeURIComponent(token)}`);
+            const response = await fetch(`${url}?action=get`);
             const result = await response.json();
             if (result.status === 'success') {
                 alert('연결 성공! 데이터를 성공적으로 불러왔습니다.');
                 updateSyncStatus(true);
             } else {
-                alert('연결 실패: ' + (result.message || '알 수 없는 오류 (토큰 확인 필요)'));
+                alert('연결 실패: ' + (result.message || '알 수 없는 오류'));
             }
         } catch (error) {
             console.error('Test Connection Error:', error);
-            alert('연결 실패: URL이 올바르지 않거나 보안 토큰이 틀렸을 수 있습니다.');
+            alert('연결 실패: URL이 올바르지 않거나 CORS 설정이 필요할 수 있습니다.');
         } finally {
             showLoading(false);
         }
@@ -986,28 +935,22 @@
 
     function saveGasUrl() {
         const url = document.getElementById('gas-url-input').value.trim();
-        const token = document.getElementById('gas-token-input').value.trim();
         if (url && !url.startsWith('http')) {
             alert('올바른 URL 형식이 아닙니다.');
             return;
         }
-        
-        // Save to localStorage
-        localStorage.setItem('scriptUrl', url);
-        localStorage.setItem('secretToken', token);
-        
-        // Verification check
-        const savedUrl = localStorage.getItem('scriptUrl');
-        const savedToken = localStorage.getItem('secretToken');
-        
-        if (savedUrl === url && savedToken === token) {
-            gasUrl = url;
-            gasToken = token;
-            alert('설정이 성공적으로 저장되었습니다.');
-            if (gasUrl) fetchDataFromGAS();
-        } else {
-            alert('설정 저장 중 오류가 발생했습니다. 다시 시도해주세요.');
+        gasUrl = url;
+        localStorage.setItem('prayerNoteGasUrl', url);
+        alert('설정이 저장되었습니다.');
+        if (gasUrl) fetchDataFromGAS();
+    }
+
+    function syncData() {
+        if (!gasUrl) {
+            alert('먼저 Google Apps Script URL을 설정해주세요.');
+            return;
         }
+        fetchDataFromGAS();
     }
 
     function exportData() {
@@ -1316,8 +1259,8 @@
                  onclick="handleCardClick(event, '${p.id}')">
                 <div class="card-header">
                     <span class="category-badge">${p.category}</span>
-                    <span class="detail-trigger" style="cursor: pointer; display: flex; align-items: center; justify-content: center; position: absolute; top: 12px; right: 12px; width: 32px; height: 32px;">
-                        <svg class="icon-inline" viewBox="0 0 24 24" style="width: 22px; height: 22px; fill: var(--primary-gold);"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    <span class="detail-trigger" style="font-size: 0.8rem; color: var(--primary-gold); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 2px;">
+                        <svg class="icon-inline" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>상세보기
                     </span>
                 </div>
                 <div class="card-title">${p.title}</div>
@@ -1528,7 +1471,6 @@
             if (screenId === 'answered-screen') renderAnswered();
             if (screenId === 'settings-screen') {
                 document.getElementById('gas-url-input').value = gasUrl;
-                document.getElementById('gas-token-input').value = gasToken;
                 if (lastSync) document.getElementById('last-sync-time').innerText = `마지막 동기화: ${lastSync}`;
             }
         });
@@ -1598,19 +1540,11 @@
         renderHeaderDate();
         document.getElementById('add-start-date').value = new Date().toISOString().split('T')[0];
         
-        // Render home immediately to satisfy "바로 홈 화면으로 시작"
-        renderHome();
-        
-        // Check if both scriptUrl and secretToken are stored
-        const storedUrl = localStorage.getItem('scriptUrl');
-        const storedToken = localStorage.getItem('secretToken');
-        
-        if (storedUrl && storedToken) {
-            gasUrl = storedUrl;
-            gasToken = storedToken;
+        if (gasUrl) {
             fetchDataFromGAS();
         } else {
-            // First time setup notice - only if not already configured
+            renderHome();
+            // First time setup notice
             setTimeout(() => {
                 if (confirm('Google Sheets와 연동하여 데이터를 안전하게 보관하시겠습니까? 설정 화면으로 이동합니다.')) {
                     document.querySelector('.nav-item[data-screen="settings-screen"]').click();
