@@ -776,11 +776,14 @@
             </div>
             
             <div id="sync-status-container" style="margin-top: 20px; border-top: 1px solid var(--beige-dark); padding-top: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <span style="font-weight: 600; font-size: 0.9rem;">동기화 상태</span>
                     <span id="sync-status-badge" class="status-badge status-offline">연결 안됨</span>
                 </div>
-                <button class="btn-outline" onclick="syncData()">지금 동기화</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn-outline" onclick="fetchDataFromGAS()">데이터 불러오기</button>
+                    <button class="btn-outline" onclick="syncToGAS()">데이터 올리기</button>
+                </div>
                 <p id="last-sync-time" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; text-align: center;">
                     마지막 동기화: 없음
                 </p>
@@ -872,15 +875,18 @@
         gasUrl = storedUrl;
         gasToken = storedToken;
 
-        console.log('Attempting to sync to GAS...');
+        console.log('--- GAS Sync (POST) Start ---');
         console.log('URL:', gasUrl);
-        console.log('Token:', gasToken);
         console.log('Data count:', prayers.length);
 
+        showLoading(true);
         try {
-            const response = await fetch(gasUrl, {
+            // mode: 'no-cors' is used to bypass CORS preflight.
+            // Data is sent, but we can't read the response.
+            await fetch(gasUrl, {
                 method: 'POST',
-                mode: 'no-cors', // Requested to bypass CORS issues
+                mode: 'no-cors',
+                cache: 'no-cache',
                 body: JSON.stringify({ 
                     action: 'sync', 
                     token: gasToken,
@@ -888,14 +894,17 @@
                 })
             });
             
-            console.log('GAS Sync fetch request sent (mode: no-cors)');
-            // Note: In no-cors mode, we cannot read the response body or status.
-            // We assume success if no network error occurred.
+            console.log('GAS Sync: Request sent.');
+            lastSync = new Date().toLocaleString();
+            localStorage.setItem('prayerNoteLastSync', lastSync);
             updateSyncStatus(true);
+            alert('데이터를 구글 시트로 전송했습니다. (전송 완료)');
         } catch (error) {
             console.error('GAS Sync Error:', error);
             updateSyncStatus(false);
-            alert('저장 실패');
+            alert('저장 실패: 네트워크 상태를 확인해주세요.');
+        } finally {
+            showLoading(false);
         }
     }
 
@@ -905,25 +914,32 @@
             return;
         }
         showLoading(true);
+        console.log('--- GAS Fetch Start ---');
         try {
-            const response = await fetch(`${gasUrl}?action=get&token=${encodeURIComponent(gasToken)}`);
+            const fetchUrl = `${gasUrl}?action=get&token=${encodeURIComponent(gasToken)}&t=${Date.now()}`;
+            const response = await fetch(fetchUrl);
+            
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
             const result = await response.json();
+            console.log('GAS Fetch Result:', result.status);
+
             if (result.status === 'success') {
-                prayers = result.data;
+                prayers = result.data || [];
                 localStorage.setItem('prayerNoteData', JSON.stringify(prayers));
                 updateSyncStatus(true);
                 renderHome();
                 renderAnswered();
                 renderCalendar();
             } else {
-                console.error('GAS Fetch Error:', result.message);
+                console.error('GAS Business Logic Error:', result.message);
                 updateSyncStatus(false);
-                renderHome(); // Fallback to local data
+                renderHome(); 
             }
         } catch (error) {
-            console.error('GAS Fetch Error:', error);
+            console.error('GAS Fetch Network/Parsing Error:', error);
             updateSyncStatus(false);
-            renderHome(); // Fallback to local data
+            renderHome(); 
         } finally {
             showLoading(false);
         }
@@ -992,14 +1008,6 @@
         } else {
             alert('설정 저장 중 오류가 발생했습니다. 다시 시도해주세요.');
         }
-    }
-
-    function syncData() {
-        if (!gasUrl) {
-            alert('먼저 Google Apps Script URL을 설정해주세요.');
-            return;
-        }
-        fetchDataFromGAS();
     }
 
     function exportData() {
