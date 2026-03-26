@@ -863,6 +863,7 @@
         }
     }
 
+    let syncTimeout = null;
     async function syncToGAS() {
         const storedUrl = localStorage.getItem('scriptUrl');
         const storedToken = localStorage.getItem('secretToken');
@@ -875,45 +876,47 @@
         gasUrl = storedUrl;
         gasToken = storedToken;
 
-        console.log('--- GAS Sync (POST) Start ---');
-        console.log('URL:', gasUrl);
-        console.log('Data count:', prayers.length);
+        // Debounce sync to improve performance
+        if (syncTimeout) clearTimeout(syncTimeout);
+        
+        syncTimeout = setTimeout(async () => {
+            console.log('--- GAS Sync (POST) Start ---');
+            console.log('URL:', gasUrl);
+            console.log('Data count:', prayers.length);
 
-        showLoading(true);
-        try {
-            // mode: 'no-cors' is used to bypass CORS preflight.
-            // Data is sent, but we can't read the response.
-            await fetch(gasUrl, {
-                method: 'POST',
-                mode: 'no-cors',
-                cache: 'no-cache',
-                body: JSON.stringify({ 
-                    action: 'sync', 
-                    token: gasToken,
-                    data: prayers 
-                })
-            });
-            
-            console.log('GAS Sync: Request sent.');
-            lastSync = new Date().toLocaleString();
-            localStorage.setItem('prayerNoteLastSync', lastSync);
-            updateSyncStatus(true);
-            alert('데이터를 구글 시트로 전송했습니다. (전송 완료)');
-        } catch (error) {
-            console.error('GAS Sync Error:', error);
-            updateSyncStatus(false);
-            alert('저장 실패: 네트워크 상태를 확인해주세요.');
-        } finally {
-            showLoading(false);
-        }
+            try {
+                // mode: 'no-cors' is used to bypass CORS preflight.
+                // Data is sent, but we can't read the response.
+                await fetch(gasUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    body: JSON.stringify({ 
+                        action: 'sync', 
+                        token: gasToken,
+                        data: prayers 
+                    })
+                });
+                
+                console.log('GAS Sync: Request sent.');
+                lastSync = new Date().toLocaleString();
+                localStorage.setItem('prayerNoteLastSync', lastSync);
+                updateSyncStatus(true);
+                // No success alert as requested
+            } catch (error) {
+                console.error('GAS Sync Error:', error);
+                updateSyncStatus(false);
+                alert('저장 실패: 네트워크 상태를 확인해주세요.');
+            }
+        }, 1000); // 1 second debounce
     }
 
-    async function fetchDataFromGAS() {
+    async function fetchDataFromGAS(silent = false) {
         if (!gasUrl) {
             renderHome();
             return;
         }
-        showLoading(true);
+        if (!silent) showLoading(true);
         console.log('--- GAS Fetch Start ---');
         try {
             const fetchUrl = `${gasUrl}?action=get&token=${encodeURIComponent(gasToken)}&t=${Date.now()}`;
@@ -941,7 +944,7 @@
             updateSyncStatus(false);
             renderHome(); 
         } finally {
-            showLoading(false);
+            if (!silent) showLoading(false);
         }
     }
 
@@ -1608,7 +1611,7 @@
         if (storedUrl && storedToken) {
             gasUrl = storedUrl;
             gasToken = storedToken;
-            fetchDataFromGAS();
+            fetchDataFromGAS(true); // Silent fetch on startup
         } else {
             // First time setup notice - only if not already configured
             setTimeout(() => {
