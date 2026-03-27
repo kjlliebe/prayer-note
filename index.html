@@ -21,6 +21,7 @@
         * {
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
 
         body {
@@ -157,10 +158,50 @@
             transition: transform 0.2s, border-color 0.3s, box-shadow 0.3s;
             position: relative;
             overflow: hidden;
+            cursor: pointer; /* Critical for mobile click events */
+            -webkit-tap-highlight-color: transparent; /* Remove gray highlight on tap */
+            user-select: none; /* Prevent text selection on rapid tapping */
         }
 
         .card:active {
-            transform: scale(0.98);
+            transform: scale(0.97);
+            background-color: #fcfcfc;
+        }
+
+        .pray-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 5;
+            position: relative;
+            font-weight: 600;
+            color: var(--accent-gold);
+            padding: 8px; /* Increased for better mobile hit area */
+            margin: -4px; /* Offset padding to keep layout consistent */
+        }
+
+        .pray-trigger:active {
+            transform: scale(0.9);
+            opacity: 0.7;
+        }
+
+        .detail-trigger {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 44px;
+            height: 44px;
+            z-index: 10;
+        }
+
+        .detail-trigger:active {
+            transform: scale(0.9);
         }
 
         .card.gold-border {
@@ -171,7 +212,7 @@
             content: '';
             position: absolute;
             top: 10px;
-            right: 10px;
+            right: 40px; /* Moved left to avoid overlap with detail icon */
             width: 18px;
             height: 18px;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23D4AF37'%3E%3Cpath d='M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z'/%3E%3C/svg%3E");
@@ -628,7 +669,7 @@
 
 <div id="app">
     <header>
-        <div class="today-date" id="header-date">2024년 5월 20일 월요일</div>
+        <div class="today-date" id="header-date">2026년 3월 27일 금요일</div>
         <h1>기도노트</h1>
     </header>
 
@@ -761,10 +802,14 @@
         <div class="settings-group">
             <label class="settings-label">Google Apps Script 웹앱 URL</label>
             <input type="text" id="gas-url-input" class="settings-input" placeholder="https://script.google.com/macros/s/.../exec">
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px;">
+            
+            <label class="settings-label" style="margin-top: 15px;">보안 토큰 (Secret Token)</label>
+            <input type="password" id="gas-token-input" class="settings-input" placeholder="보안을 위해 사용할 토큰을 입력하세요">
+            
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px; margin-top: 10px;">
                 1. Google Sheets 생성 후 시트명을 <b>기도목록</b>으로 변경<br>
                 2. Apps Script 작성 및 '웹앱'으로 배포 (액세스: 모든 사용자)<br>
-                3. 배포된 URL을 위 칸에 입력하세요.
+                3. 배포된 URL과 설정한 보안 토큰을 위 칸에 입력하세요.
             </p>
             <div style="display: flex; gap: 8px;">
                 <button class="btn-primary" style="flex: 1;" onclick="saveGasUrl()">설정 저장</button>
@@ -772,11 +817,14 @@
             </div>
             
             <div id="sync-status-container" style="margin-top: 20px; border-top: 1px solid var(--beige-dark); padding-top: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <span style="font-weight: 600; font-size: 0.9rem;">동기화 상태</span>
                     <span id="sync-status-badge" class="status-badge status-offline">연결 안됨</span>
                 </div>
-                <button class="btn-outline" onclick="syncData()">지금 동기화</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn-outline" onclick="fetchDataFromGAS()">데이터 불러오기</button>
+                    <button class="btn-outline" onclick="syncToGAS()">데이터 올리기</button>
+                </div>
                 <p id="last-sync-time" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; text-align: center;">
                     마지막 동기화: 없음
                 </p>
@@ -838,7 +886,8 @@
 <script>
     // --- Data Management ---
     let prayers = JSON.parse(localStorage.getItem('prayerNoteData')) || [];
-    let gasUrl = localStorage.getItem('prayerNoteGasUrl') || '';
+    let gasUrl = localStorage.getItem('scriptUrl') || '';
+    let gasToken = localStorage.getItem('secretToken') || '';
     let lastSync = localStorage.getItem('prayerNoteLastSync') || '';
     let currentFilter = '전체';
     let calendarDate = new Date();
@@ -855,63 +904,109 @@
         }
     }
 
+    let syncTimeout = null;
     async function syncToGAS() {
-        if (!gasUrl) return;
-        try {
-            // Using a simple form-like POST or a fetch that GAS can handle
-            // GAS doesn't support complex CORS preflight well, so we use a simple request
-            const response = await fetch(gasUrl, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'sync', data: prayers })
-            });
-            
-            // GAS redirects can be tricky with fetch, but usually it works if the script is set up right
-            updateSyncStatus(true);
-        } catch (error) {
-            console.error('GAS Sync Error:', error);
-            updateSyncStatus(false);
+        const storedUrl = localStorage.getItem('scriptUrl');
+        const storedToken = localStorage.getItem('secretToken');
+        
+        if (!storedUrl || !storedToken) {
+            console.log('GAS Sync skipped: scriptUrl or secretToken missing in localStorage');
+            return;
         }
+
+        gasUrl = storedUrl;
+        gasToken = storedToken;
+
+        // Debounce sync to improve performance
+        if (syncTimeout) clearTimeout(syncTimeout);
+        
+        syncTimeout = setTimeout(async () => {
+            console.log('--- GAS Sync (POST) Start ---');
+            console.log('URL:', gasUrl);
+            console.log('Data count:', prayers.length);
+
+            try {
+                // mode: 'no-cors' is used to bypass CORS preflight.
+                // Data is sent, but we can't read the response.
+                await fetch(gasUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    body: JSON.stringify({ 
+                        action: 'sync', 
+                        token: gasToken,
+                        data: prayers 
+                    })
+                });
+                
+                console.log('GAS Sync: Request sent.');
+                lastSync = new Date().toLocaleString();
+                localStorage.setItem('prayerNoteLastSync', lastSync);
+                updateSyncStatus(true);
+                // No success alert as requested
+            } catch (error) {
+                console.error('GAS Sync Error:', error);
+                updateSyncStatus(false);
+                alert('저장 실패: 네트워크 상태를 확인해주세요.');
+            }
+        }, 1000); // 1 second debounce
     }
 
-    async function fetchDataFromGAS() {
-        if (!gasUrl) return;
-        showLoading(true);
+    async function fetchDataFromGAS(silent = false) {
+        if (!gasUrl) {
+            renderHome();
+            return;
+        }
+        if (!silent) showLoading(true);
+        console.log('--- GAS Fetch Start ---');
         try {
-            const response = await fetch(`${gasUrl}?action=get`);
+            const fetchUrl = `${gasUrl}?action=get&token=${encodeURIComponent(gasToken)}&t=${Date.now()}`;
+            const response = await fetch(fetchUrl);
+            
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
             const result = await response.json();
+            console.log('GAS Fetch Result:', result.status);
+
             if (result.status === 'success') {
-                prayers = result.data;
+                prayers = result.data || [];
                 localStorage.setItem('prayerNoteData', JSON.stringify(prayers));
                 updateSyncStatus(true);
                 renderHome();
                 renderAnswered();
                 renderCalendar();
+            } else {
+                console.error('GAS Business Logic Error:', result.message);
+                updateSyncStatus(false);
+                renderHome(); 
             }
         } catch (error) {
-            console.error('GAS Fetch Error:', error);
+            console.error('GAS Fetch Network/Parsing Error:', error);
             updateSyncStatus(false);
+            renderHome(); 
         } finally {
-            showLoading(false);
+            if (!silent) showLoading(false);
         }
     }
 
     async function testConnection() {
         const url = document.getElementById('gas-url-input').value.trim();
+        const token = document.getElementById('gas-token-input').value.trim();
         if (!url) return alert('URL을 먼저 입력해주세요.');
         
         showLoading(true);
         try {
-            const response = await fetch(`${url}?action=get`);
+            const response = await fetch(`${url}?action=get&token=${encodeURIComponent(token)}`);
             const result = await response.json();
             if (result.status === 'success') {
                 alert('연결 성공! 데이터를 성공적으로 불러왔습니다.');
                 updateSyncStatus(true);
             } else {
-                alert('연결 실패: ' + (result.message || '알 수 없는 오류'));
+                alert('연결 실패: ' + (result.message || '알 수 없는 오류 (토큰 확인 필요)'));
             }
         } catch (error) {
             console.error('Test Connection Error:', error);
-            alert('연결 실패: URL이 올바르지 않거나 CORS 설정이 필요할 수 있습니다.');
+            alert('연결 실패: URL이 올바르지 않거나 보안 토큰이 틀렸을 수 있습니다.');
         } finally {
             showLoading(false);
         }
@@ -935,22 +1030,28 @@
 
     function saveGasUrl() {
         const url = document.getElementById('gas-url-input').value.trim();
+        const token = document.getElementById('gas-token-input').value.trim();
         if (url && !url.startsWith('http')) {
             alert('올바른 URL 형식이 아닙니다.');
             return;
         }
-        gasUrl = url;
-        localStorage.setItem('prayerNoteGasUrl', url);
-        alert('설정이 저장되었습니다.');
-        if (gasUrl) fetchDataFromGAS();
-    }
-
-    function syncData() {
-        if (!gasUrl) {
-            alert('먼저 Google Apps Script URL을 설정해주세요.');
-            return;
+        
+        // Save to localStorage
+        localStorage.setItem('scriptUrl', url);
+        localStorage.setItem('secretToken', token);
+        
+        // Verification check
+        const savedUrl = localStorage.getItem('scriptUrl');
+        const savedToken = localStorage.getItem('secretToken');
+        
+        if (savedUrl === url && savedToken === token) {
+            gasUrl = url;
+            gasToken = token;
+            alert('설정이 성공적으로 저장되었습니다.');
+            if (gasUrl) fetchDataFromGAS();
+        } else {
+            alert('설정 저장 중 오류가 발생했습니다. 다시 시도해주세요.');
         }
-        fetchDataFromGAS();
     }
 
     function exportData() {
@@ -977,7 +1078,7 @@
     function formatDate(dateStr) {
         if (!dateStr) return '';
         const d = new Date(dateStr);
-        return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+        return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
     }
 
     function getDDay(dateStr) {
@@ -1011,8 +1112,14 @@
 
     // --- UI Rendering ---
     function renderHeaderDate() {
-        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
-        document.getElementById('header-date').innerText = new Date().toLocaleDateString('ko-KR', options);
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const date = d.getDate();
+        const weekDays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+        const weekDay = weekDays[d.getDay()];
+        
+        document.getElementById('header-date').innerText = `${year}년 ${month}월 ${date}일 ${weekDay}`;
     }
 
     function renderHome() {
@@ -1027,7 +1134,7 @@
         if (upcomingEvents.length > 0) {
             document.getElementById('event-section').style.display = 'block';
             eventList.innerHTML = upcomingEvents.map(p => `
-                <div class="card event-card" onclick="openDetail('${p.id}')">
+                <div class="card event-card" onclick="openDetail('${p.id}')" ontouchend="openDetail('${p.id}')">
                     <div class="card-header">
                         <span class="category-badge">${p.category}</span>
                         <span class="event-dday">${getDDay(p.eventDate)}</span>
@@ -1077,14 +1184,17 @@
                  id="card-${p.id}"
                  onclick="handleCardClick(event, '${p.id}')">
                 <div class="card-header">
-                    <span class="category-badge">${p.category}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="category-badge">${p.category}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">시작: ${formatDate(p.startDate)}</span>
+                        <span class="pray-trigger">
+                            <svg class="icon-inline" viewBox="0 0 24 24" style="pointer-events: none;"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                            <span class="pray-count" style="pointer-events: none; font-size: 0.8rem;">${p.prayCount}</span>
+                        </span>
+                    </div>
                     ${isEventToday ? '<span style="color: #D32F2F; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 4px;"><svg class="icon-inline" viewBox="0 0 24 24" style="fill: #D32F2F;"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>오늘 이벤트</span>' : ''}
                 </div>
                 <div class="card-title">${p.title}</div>
-                <div class="card-meta">
-                    <span class="pray-count"><svg class="icon-inline" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>${p.prayCount}</span>
-                    <span>시작: ${formatDate(p.startDate)}</span>
-                </div>
                 <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">
                     마지막 기도: ${p.lastPrayedDate ? formatDate(p.lastPrayedDate) : '없음'}
                 </div>
@@ -1112,7 +1222,7 @@
             `;
         } else {
             list.innerHTML = answered.map(p => `
-                <div class="card" style="border-left: 4px solid var(--primary-gold);" onclick="openDetail('${p.id}')">
+                <div class="card" style="border-left: 4px solid var(--primary-gold);" onclick="openDetail('${p.id}')" ontouchend="openDetail('${p.id}')">
                     <div class="card-header">
                         <span class="category-badge">${p.category}</span>
                         <span style="color: var(--accent-gold); font-size: 0.8rem; font-weight: 600;">응답완료</span>
@@ -1178,6 +1288,7 @@
         selectedCalendarDate = dateStr;
         renderCalendar();
     }
+    window.selectCalendarDate = selectCalendarDate;
 
     function renderSelectedDateEvents() {
         const title = document.getElementById('selected-date-title');
@@ -1191,7 +1302,7 @@
             list.innerHTML = `<div class="empty-state" style="padding: 20px;"><p>이 날짜에 예정된 이벤트가 없습니다.</p></div>`;
         } else {
             list.innerHTML = dayEvents.map(p => `
-                <div class="card event-card" onclick="openDetail('${p.id}')">
+                <div class="card event-card" onclick="openDetail('${p.id}')" ontouchend="openDetail('${p.id}')">
                     <div class="card-header">
                         <span class="category-badge">${p.category}</span>
                         <span style="color: var(--accent-gold); font-size: 0.8rem; font-weight: 600;">${p.eventLabel}</span>
@@ -1213,38 +1324,57 @@
     });
 
     // --- Actions ---
-    function handleCardClick(event, id) {
-        // If user clicks the card, increment count. If they long press or we add a detail button, open detail.
-        // For this app, let's say: tap = pray, but we need a way to see details.
-        // Requirement: "카드를 탭하면 기도 횟수 +1 증가... 카드를 탭하면 상세 화면으로 이동"
-        // Conflict in prompt: "카드를 탭하면 기도 횟수 +1 증가" AND "카드를 탭하면 상세 화면으로 이동"
-        // Resolution: Tap the card to pray (increment). Add a "Detail" icon or handle it via a separate button.
-        // Actually, let's make the Title or a specific area open detail, and the rest increment.
-        // Or: Tap = increment, Double Tap or "Info" button = Detail.
-        // Let's go with: Tap = increment + animation. Long press or a small icon = Detail.
-        // Wait, prompt says: "카드를 탭하면 기도 횟수 +1 증가" AND "카테고리별로 묶어서 표시... 카드를 탭하면 상세 화면으로 이동"
-        // I will add a small "돋보기" or "상세" text for detail, and the card body for praying.
-        
-        const card = document.getElementById(`card-${id}`);
-        const prayer = prayers.find(p => p.id === id);
-        
-        if (event.target.closest('.detail-trigger')) {
-            openDetail(id);
-            return;
-        }
+    function handlePrayClick(event, id) {
+        try {
+            if (event.type === 'touchend') event.preventDefault();
+            event.stopPropagation();
+            console.log('Pray trigger clicked - Incrementing:', id);
+            
+            const prayer = prayers.find(p => p.id === id);
+            if (!prayer) {
+                console.error('Prayer not found for id:', id);
+                return;
+            }
 
-        // Increment Pray Count
-        prayer.prayCount++;
-        prayer.lastPrayedDate = new Date().toISOString().split('T')[0];
-        saveData();
-        
-        // Animation
-        card.classList.add('animate-pray');
-        setTimeout(() => card.classList.remove('animate-pray'), 500);
-        
-        // Re-render only this card or just the count to be efficient
-        renderHome();
+            prayer.prayCount++;
+            prayer.lastPrayedDate = new Date().toISOString().split('T')[0];
+            saveData();
+            
+            const card = document.getElementById(`card-${id}`);
+            if (card) {
+                card.classList.add('animate-pray');
+                setTimeout(() => card.classList.remove('animate-pray'), 500);
+            }
+            
+            renderHome();
+        } catch (err) {
+            console.error('Error in handlePrayClick:', err);
+        }
     }
+    window.handlePrayClick = handlePrayClick;
+
+    function handleDetailClick(event, id) {
+        try {
+            if (event.type === 'touchend') event.preventDefault();
+            event.stopPropagation();
+            console.log('Detail trigger clicked:', id);
+            openDetail(id);
+        } catch (err) {
+            console.error('Error in handleDetailClick:', err);
+        }
+    }
+    window.handleDetailClick = handleDetailClick;
+
+    function handleCardClick(event, id) {
+        if (event.type === 'touchend') event.preventDefault();
+        console.log('Card body tapped:', id, 'Event Target:', event.target);
+        const card = document.getElementById(`card-${id}`);
+        if (card) {
+            card.classList.add('animate-pray');
+            setTimeout(() => card.classList.remove('animate-pray'), 500);
+        }
+    }
+    window.handleCardClick = handleCardClick;
 
     // Override renderPrayerCard to include detail trigger
     const originalRenderPrayerCard = renderPrayerCard;
@@ -1256,26 +1386,33 @@
         return `
             <div class="card ${isGold ? 'gold-border' : ''} ${isSpecial ? 'special-badge' : ''} ${isEventToday ? 'event-today' : ''}" 
                  id="card-${p.id}"
-                 onclick="handleCardClick(event, '${p.id}')">
+                 onclick="handleCardClick(event, '${p.id}')"
+                 ontouchend="handleCardClick(event, '${p.id}')">
                 <div class="card-header">
-                    <span class="category-badge">${p.category}</span>
-                    <span class="detail-trigger" style="font-size: 0.8rem; color: var(--primary-gold); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 2px;">
-                        <svg class="icon-inline" viewBox="0 0 24 24" style="width: 12px; height: 12px;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>상세보기
+                    <div style="display: flex; align-items: center; gap: 8px; padding-right: 40px; flex-wrap: wrap;">
+                        <span class="category-badge">${p.category}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">시작: ${formatDate(p.startDate)}</span>
+                        <span class="pray-trigger" onclick="handlePrayClick(event, '${p.id}')" ontouchend="handlePrayClick(event, '${p.id}')">
+                            <svg class="icon-inline" viewBox="0 0 24 24" style="pointer-events: none;"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                            <span class="pray-count" style="pointer-events: none; font-size: 0.8rem;">${p.prayCount}</span>
+                        </span>
+                    </div>
+                    <span class="detail-trigger" onclick="handleDetailClick(event, '${p.id}')" ontouchend="handleDetailClick(event, '${p.id}')">
+                        <svg class="icon-inline" viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: var(--primary-gold); pointer-events: none;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                     </span>
                 </div>
                 <div class="card-title">${p.title}</div>
-                <div class="card-meta">
-                    <span class="pray-count"><svg class="icon-inline" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>${p.prayCount}</span>
-                    <span>시작: ${formatDate(p.startDate)}</span>
-                </div>
-                ${isEventToday ? '<div style="color: #D32F2F; font-size: 0.75rem; font-weight: 700; margin-top: 4px; display: flex; align-items: center; gap: 4px;"><svg class="icon-inline" viewBox="0 0 24 24" style="fill: #D32F2F;"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>오늘: ' + p.eventLabel + '</div>' : ''}
+                ${isEventToday ? '<div style="color: #D32F2F; font-size: 0.75rem; font-weight: 700; margin-top: 8px; display: flex; align-items: center; gap: 4px;"><svg class="icon-inline" viewBox="0 0 24 24" style="fill: #D32F2F;"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>오늘: ' + p.eventLabel + '</div>' : ''}
             </div>
         `;
     };
 
     function openDetail(id) {
+        console.log('Opening detail for:', id);
         const p = prayers.find(p => p.id === id);
         const body = document.getElementById('detail-body');
+        
+        if (!p) return;
         
         body.innerHTML = `
             <div style="margin-bottom: 20px;">
@@ -1424,6 +1561,8 @@
     function closeDetail() {
         document.getElementById('detail-overlay').style.display = 'none';
     }
+    window.openDetail = openDetail;
+    window.closeDetail = closeDetail;
 
     function submitAnswer(id) {
         const date = document.getElementById('answer-date').value;
@@ -1453,36 +1592,53 @@
     }
 
     // --- Navigation Logic ---
+    function handleNavClick(item) {
+        const screenId = item.getAttribute('data-screen');
+        
+        // Update Nav UI
+        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+        item.classList.add('active');
+        
+        // Update Screen UI
+        document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+        
+        // Refresh Data if needed
+        if (screenId === 'home-screen') renderHome();
+        if (screenId === 'calendar-screen') renderCalendar();
+        if (screenId === 'answered-screen') renderAnswered();
+        if (screenId === 'settings-screen') {
+            document.getElementById('gas-url-input').value = gasUrl;
+            document.getElementById('gas-token-input').value = gasToken;
+            if (lastSync) document.getElementById('last-sync-time').innerText = `마지막 동기화: ${lastSync}`;
+        }
+    }
+
     document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', () => {
-            const screenId = item.getAttribute('data-screen');
-            
-            // Update Nav UI
-            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-            item.classList.add('active');
-            
-            // Update Screen UI
-            document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
-            
-            // Refresh Data if needed
-            if (screenId === 'home-screen') renderHome();
-            if (screenId === 'calendar-screen') renderCalendar();
-            if (screenId === 'answered-screen') renderAnswered();
-            if (screenId === 'settings-screen') {
-                document.getElementById('gas-url-input').value = gasUrl;
-                if (lastSync) document.getElementById('last-sync-time').innerText = `마지막 동기화: ${lastSync}`;
-            }
+        item.addEventListener('click', (e) => {
+            handleNavClick(item);
+        });
+        item.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleNavClick(item);
         });
     });
 
     // --- Add Screen Logic ---
     let selectedAddCat = '개인';
+    function handleAddCatClick(btn) {
+        document.querySelectorAll('#add-cat-selector .cat-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedAddCat = btn.getAttribute('data-cat');
+    }
+
     document.querySelectorAll('#add-cat-selector .cat-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('#add-cat-selector .cat-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            selectedAddCat = btn.getAttribute('data-cat');
+            handleAddCatClick(btn);
+        });
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleAddCatClick(btn);
         });
     });
 
@@ -1526,12 +1682,20 @@
     });
 
     // --- Filter Logic ---
+    function handleFilterClick(btn) {
+        document.querySelectorAll('#category-filters .filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.getAttribute('data-cat');
+        renderHome();
+    }
+
     document.querySelectorAll('#category-filters .filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('#category-filters .filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentFilter = btn.getAttribute('data-cat');
-            renderHome();
+            handleFilterClick(btn);
+        });
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleFilterClick(btn);
         });
     });
 
@@ -1540,11 +1704,19 @@
         renderHeaderDate();
         document.getElementById('add-start-date').value = new Date().toISOString().split('T')[0];
         
-        if (gasUrl) {
-            fetchDataFromGAS();
+        // Render home immediately to satisfy "바로 홈 화면으로 시작"
+        renderHome();
+        
+        // Check if both scriptUrl and secretToken are stored
+        const storedUrl = localStorage.getItem('scriptUrl');
+        const storedToken = localStorage.getItem('secretToken');
+        
+        if (storedUrl && storedToken) {
+            gasUrl = storedUrl;
+            gasToken = storedToken;
+            fetchDataFromGAS(true); // Silent fetch on startup
         } else {
-            renderHome();
-            // First time setup notice
+            // First time setup notice - only if not already configured
             setTimeout(() => {
                 if (confirm('Google Sheets와 연동하여 데이터를 안전하게 보관하시겠습니까? 설정 화면으로 이동합니다.')) {
                     document.querySelector('.nav-item[data-screen="settings-screen"]').click();
