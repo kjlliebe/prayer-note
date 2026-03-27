@@ -177,7 +177,8 @@
             position: relative;
             font-weight: 600;
             color: var(--accent-gold);
-            padding: 4px;
+            padding: 8px; /* Increased for better mobile hit area */
+            margin: -4px; /* Offset padding to keep layout consistent */
         }
 
         .pray-trigger:active {
@@ -1322,43 +1323,48 @@
     });
 
     // --- Actions ---
-    function handleCardClick(event, id) {
-        console.log('Card interaction:', id, 'Target:', event.target);
-        
-        const card = document.getElementById(`card-${id}`);
-        const prayer = prayers.find(p => p.id === id);
-        
-        if (!prayer) return;
-
-        // 1. Check if the click was on the detail trigger (magnifying glass)
-        if (event.target.closest('.detail-trigger')) {
-            console.log('Detail trigger clicked');
+    function handlePrayClick(event, id) {
+        try {
             event.stopPropagation();
-            openDetail(id);
-            return;
-        }
-
-        // 2. Check if the click was on the prayer icon/count (pray-trigger)
-        if (event.target.closest('.pray-trigger')) {
-            console.log('Pray trigger clicked - Incrementing');
-            event.stopPropagation();
+            console.log('Pray trigger clicked - Incrementing:', id);
             
+            const prayer = prayers.find(p => p.id === id);
+            if (!prayer) {
+                console.error('Prayer not found for id:', id);
+                return;
+            }
+
             prayer.prayCount++;
             prayer.lastPrayedDate = new Date().toISOString().split('T')[0];
             saveData();
             
-            // Animation for the whole card to show feedback
+            const card = document.getElementById(`card-${id}`);
             if (card) {
                 card.classList.add('animate-pray');
                 setTimeout(() => card.classList.remove('animate-pray'), 500);
             }
             
             renderHome();
-            return;
+        } catch (err) {
+            console.error('Error in handlePrayClick:', err);
         }
+    }
+    window.handlePrayClick = handlePrayClick;
 
-        // 3. Default card tap: Just visual feedback (animation)
-        console.log('Card body tapped - Visual feedback only');
+    function handleDetailClick(event, id) {
+        try {
+            event.stopPropagation();
+            console.log('Detail trigger clicked:', id);
+            openDetail(id);
+        } catch (err) {
+            console.error('Error in handleDetailClick:', err);
+        }
+    }
+    window.handleDetailClick = handleDetailClick;
+
+    function handleCardClick(event, id) {
+        console.log('Card body tapped:', id, 'Event Target:', event.target);
+        const card = document.getElementById(`card-${id}`);
         if (card) {
             card.classList.add('animate-pray');
             setTimeout(() => card.classList.remove('animate-pray'), 500);
@@ -1378,15 +1384,15 @@
                  id="card-${p.id}"
                  onclick="handleCardClick(event, '${p.id}')">
                 <div class="card-header">
-                    <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; padding-right: 40px; flex-wrap: wrap;">
                         <span class="category-badge">${p.category}</span>
                         <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">시작: ${formatDate(p.startDate)}</span>
-                        <span class="pray-trigger">
+                        <span class="pray-trigger" onclick="handlePrayClick(event, '${p.id}')">
                             <svg class="icon-inline" viewBox="0 0 24 24" style="pointer-events: none;"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
                             <span class="pray-count" style="pointer-events: none; font-size: 0.8rem;">${p.prayCount}</span>
                         </span>
                     </div>
-                    <span class="detail-trigger">
+                    <span class="detail-trigger" onclick="handleDetailClick(event, '${p.id}')">
                         <svg class="icon-inline" viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: var(--primary-gold); pointer-events: none;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                     </span>
                 </div>
@@ -1703,4 +1709,3 @@
 
 </body>
 </html>
-
