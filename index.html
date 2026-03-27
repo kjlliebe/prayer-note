@@ -424,10 +424,6 @@
             100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
         }
 
-        .animate-pray {
-            animation: prayPulse 0.5s ease-out;
-        }
-
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -1134,7 +1130,7 @@
         if (upcomingEvents.length > 0) {
             document.getElementById('event-section').style.display = 'block';
             eventList.innerHTML = upcomingEvents.map(p => `
-                <div class="card event-card" onclick="openDetail('${p.id}')" ontouchend="openDetail('${p.id}')">
+                <div class="card event-card" onclick="openDetail('${p.id}')">
                     <div class="card-header">
                         <span class="category-badge">${p.category}</span>
                         <span class="event-dday">${getDDay(p.eventDate)}</span>
@@ -1222,7 +1218,7 @@
             `;
         } else {
             list.innerHTML = answered.map(p => `
-                <div class="card" style="border-left: 4px solid var(--primary-gold);" onclick="openDetail('${p.id}')" ontouchend="openDetail('${p.id}')">
+                <div class="card" style="border-left: 4px solid var(--primary-gold);" onclick="openDetail('${p.id}')">
                     <div class="card-header">
                         <span class="category-badge">${p.category}</span>
                         <span style="color: var(--accent-gold); font-size: 0.8rem; font-weight: 600;">응답완료</span>
@@ -1302,7 +1298,7 @@
             list.innerHTML = `<div class="empty-state" style="padding: 20px;"><p>이 날짜에 예정된 이벤트가 없습니다.</p></div>`;
         } else {
             list.innerHTML = dayEvents.map(p => `
-                <div class="card event-card" onclick="openDetail('${p.id}')" ontouchend="openDetail('${p.id}')">
+                <div class="card event-card" onclick="openDetail('${p.id}')">
                     <div class="card-header">
                         <span class="category-badge">${p.category}</span>
                         <span style="color: var(--accent-gold); font-size: 0.8rem; font-weight: 600;">${p.eventLabel}</span>
@@ -1326,8 +1322,7 @@
     // --- Actions ---
     function handlePrayClick(event, id) {
         try {
-            if (event.type === 'touchend') event.preventDefault();
-            event.stopPropagation();
+            if (event) event.stopPropagation();
             console.log('Pray trigger clicked - Incrementing:', id);
             
             const prayer = prayers.find(p => p.id === id);
@@ -1339,13 +1334,6 @@
             prayer.prayCount++;
             prayer.lastPrayedDate = new Date().toISOString().split('T')[0];
             saveData();
-            
-            const card = document.getElementById(`card-${id}`);
-            if (card) {
-                card.classList.add('animate-pray');
-                setTimeout(() => card.classList.remove('animate-pray'), 500);
-            }
-            
             renderHome();
         } catch (err) {
             console.error('Error in handlePrayClick:', err);
@@ -1355,8 +1343,7 @@
 
     function handleDetailClick(event, id) {
         try {
-            if (event.type === 'touchend') event.preventDefault();
-            event.stopPropagation();
+            if (event) event.stopPropagation();
             console.log('Detail trigger clicked:', id);
             openDetail(id);
         } catch (err) {
@@ -1366,13 +1353,8 @@
     window.handleDetailClick = handleDetailClick;
 
     function handleCardClick(event, id) {
-        if (event.type === 'touchend') event.preventDefault();
-        console.log('Card body tapped:', id, 'Event Target:', event.target);
-        const card = document.getElementById(`card-${id}`);
-        if (card) {
-            card.classList.add('animate-pray');
-            setTimeout(() => card.classList.remove('animate-pray'), 500);
-        }
+        console.log('Card body tapped:', id);
+        // Removed animation effect as requested
     }
     window.handleCardClick = handleCardClick;
 
@@ -1386,18 +1368,17 @@
         return `
             <div class="card ${isGold ? 'gold-border' : ''} ${isSpecial ? 'special-badge' : ''} ${isEventToday ? 'event-today' : ''}" 
                  id="card-${p.id}"
-                 onclick="handleCardClick(event, '${p.id}')"
-                 ontouchend="handleCardClick(event, '${p.id}')">
+                 onclick="handleCardClick(event, '${p.id}')">
                 <div class="card-header">
                     <div style="display: flex; align-items: center; gap: 8px; padding-right: 40px; flex-wrap: wrap;">
                         <span class="category-badge">${p.category}</span>
                         <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">시작: ${formatDate(p.startDate)}</span>
-                        <span class="pray-trigger" onclick="handlePrayClick(event, '${p.id}')" ontouchend="handlePrayClick(event, '${p.id}')">
+                        <span class="pray-trigger" onclick="handlePrayClick(event, '${p.id}')">
                             <svg class="icon-inline" viewBox="0 0 24 24" style="pointer-events: none;"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
                             <span class="pray-count" style="pointer-events: none; font-size: 0.8rem;">${p.prayCount}</span>
                         </span>
                     </div>
-                    <span class="detail-trigger" onclick="handleDetailClick(event, '${p.id}')" ontouchend="handleDetailClick(event, '${p.id}')">
+                    <span class="detail-trigger" onclick="handleDetailClick(event, '${p.id}')">
                         <svg class="icon-inline" viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: var(--primary-gold); pointer-events: none;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                     </span>
                 </div>
@@ -1618,10 +1599,6 @@
         item.addEventListener('click', (e) => {
             handleNavClick(item);
         });
-        item.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            handleNavClick(item);
-        });
     });
 
     // --- Add Screen Logic ---
@@ -1634,10 +1611,6 @@
 
     document.querySelectorAll('#add-cat-selector .cat-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            handleAddCatClick(btn);
-        });
-        btn.addEventListener('touchend', (e) => {
-            e.preventDefault();
             handleAddCatClick(btn);
         });
     });
@@ -1691,10 +1664,6 @@
 
     document.querySelectorAll('#category-filters .filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            handleFilterClick(btn);
-        });
-        btn.addEventListener('touchend', (e) => {
-            e.preventDefault();
             handleFilterClick(btn);
         });
     });
