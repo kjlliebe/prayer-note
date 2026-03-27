@@ -965,7 +965,11 @@
             console.log('GAS Fetch Result:', result.status);
 
             if (result.status === 'success') {
-                prayers = result.data || [];
+                // Ensure all IDs are strings and trimmed
+                prayers = (result.data || []).map(item => ({
+                    ...item,
+                    id: String(item.id).trim()
+                }));
                 localStorage.setItem('prayerNoteData', JSON.stringify(prayers));
                 updateSyncStatus(true);
                 renderHome();
@@ -1325,7 +1329,7 @@
             if (event) event.stopPropagation();
             console.log('Pray trigger clicked - Incrementing:', id);
             
-            const prayer = prayers.find(p => p.id === id);
+            const prayer = prayers.find(p => String(p.id) === String(id));
             if (!prayer) {
                 console.error('Prayer not found for id:', id);
                 return;
@@ -1390,7 +1394,7 @@
 
     function openDetail(id) {
         console.log('Opening detail for:', id);
-        const p = prayers.find(p => p.id === id);
+        const p = prayers.find(p => String(p.id) === String(id));
         const body = document.getElementById('detail-body');
         
         if (!p) return;
@@ -1471,7 +1475,7 @@
     }
 
     function toggleEditMode(id) {
-        const p = prayers.find(p => p.id === id);
+        const p = prayers.find(p => String(p.id) === String(id));
         const body = document.getElementById('detail-body');
         const isEditing = document.getElementById('edit-save-btn');
 
@@ -1523,7 +1527,7 @@
     }
 
     function saveEdit(id) {
-        const p = prayers.find(p => p.id === id);
+        const p = prayers.find(p => String(p.id) === String(id));
         p.category = document.getElementById('edit-category').value;
         p.title = document.getElementById('edit-title').value;
         p.content = document.getElementById('edit-content').value;
@@ -1551,7 +1555,7 @@
         
         if (!date) return alert('응답 날짜를 선택해주세요.');
         
-        const p = prayers.find(p => p.id === id);
+        const p = prayers.find(p => String(p.id) === String(id));
         p.status = '응답완료';
         p.answeredDate = date;
         p.answerNote = note;
@@ -1564,7 +1568,7 @@
 
     function deletePrayer(id) {
         if (confirm('이 기도 제목을 삭제하시겠습니까?')) {
-            prayers = prayers.filter(p => p.id !== id);
+            prayers = prayers.filter(p => String(p.id) !== String(id));
             saveData();
             closeDetail();
             renderHome();
