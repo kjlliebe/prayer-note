@@ -1,1 +1,1706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>기도노트 - Prayer Note</title>
+    <style>
+        :root {
+            --bg-color: #FDFBF7;
+            --card-bg: #FFFFFF;
+            --primary-gold: #D4AF37;
+            --accent-gold: #B8860B;
+            --beige-light: #F5F1E9;
+            --beige-dark: #E8E2D6;
+            --text-main: #4A453E;
+            --text-muted: #8C857B;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            --radius: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Layout */
+        #app {
+            max-width: 500px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 80px; /* Space for bottom nav */
+        }
+
+        header {
+            padding: 24px 20px 10px;
+            background-color: var(--bg-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .today-date {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            color: var(--accent-gold);
+            font-weight: 700;
+        }
+
+        /* Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 500px;
+            height: 70px;
+            background-color: var(--card-bg);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            z-index: 1000;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: color 0.3s;
+            flex: 1;
+        }
+
+        .nav-item.active {
+            color: var(--primary-gold);
+        }
+
+        .nav-icon {
+            font-size: 1.4rem;
+            margin-bottom: 4px;
+        }
+
+        /* Screens */
+        .screen {
+            display: none;
+            padding: 10px 20px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Components */
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 24px 0 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .icon-inline {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+            vertical-align: middle;
+            margin-right: 2px;
+            margin-top: -2px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            border: 1px solid transparent;
+            transition: transform 0.2s, border-color 0.3s, box-shadow 0.3s;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer; /* Critical for mobile click events */
+            -webkit-tap-highlight-color: transparent; /* Remove gray highlight on tap */
+            user-select: none; /* Prevent text selection on rapid tapping */
+        }
+
+        .card:active {
+            transform: scale(0.97);
+            background-color: #fcfcfc;
+        }
+
+        .pray-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 5;
+            position: relative;
+            font-weight: 600;
+            color: var(--accent-gold);
+            padding: 4px;
+        }
+
+        .pray-trigger:active {
+            transform: scale(0.9);
+            opacity: 0.7;
+        }
+
+        .detail-trigger {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 44px;
+            height: 44px;
+            z-index: 10;
+        }
+
+        .detail-trigger:active {
+            transform: scale(0.9);
+        }
+
+        .card.gold-border {
+            border-color: var(--primary-gold);
+        }
+
+        .card.special-badge::after {
+            content: '';
+            position: absolute;
+            top: 10px;
+            right: 40px; /* Moved left to avoid overlap with detail icon */
+            width: 18px;
+            height: 18px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23D4AF37'%3E%3Cpath d='M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z'/%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .card.event-today {
+            background-color: #FFF9E6;
+            border: 1px solid #FFE082;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .category-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background-color: var(--beige-light);
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 4px 0;
+        }
+
+        .card-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .pray-count {
+            color: var(--accent-gold);
+            font-weight: 600;
+        }
+
+        /* Event Card */
+        .event-card {
+            background: linear-gradient(135deg, #FFF9E6 0%, #FFFDF5 100%);
+            border-left: 4px solid var(--primary-gold);
+        }
+
+        .event-dday {
+            font-weight: 700;
+            color: #D32F2F;
+            margin-right: 8px;
+        }
+
+        /* Filter Buttons */
+        .filter-container {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 10px 0;
+            scrollbar-width: none;
+        }
+
+        .filter-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-btn {
+            white-space: nowrap;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background-color: var(--beige-light);
+            border: none;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-btn.active {
+            background-color: var(--primary-gold);
+            color: white;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--beige-dark);
+            background-color: white;
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            border-color: var(--primary-gold);
+        }
+
+        .category-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .cat-btn {
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid var(--beige-dark);
+            background-color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .cat-btn.active {
+            background-color: var(--primary-gold);
+            color: white;
+            border-color: var(--primary-gold);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            background-color: var(--primary-gold);
+            color: white;
+            border: none;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 10px;
+            box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            background-color: var(--beige-light);
+            color: var(--text-main);
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn-danger {
+            background-color: #FEE2E2;
+            color: #DC2626;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-item {
+            background-color: var(--card-bg);
+            padding: 16px 10px;
+            border-radius: var(--radius);
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-gold);
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Animations */
+        @keyframes prayPulse {
+            0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(212, 175, 55, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+        }
+
+        .animate-pray {
+            animation: prayPulse 0.5s ease-out;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        /* Calendar Styles */
+        .calendar-container {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            text-align: center;
+        }
+
+        .calendar-day-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            padding-bottom: 8px;
+        }
+
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            border-radius: 50%;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        .calendar-day:hover {
+            background-color: var(--beige-light);
+        }
+
+        .calendar-day.today {
+            background-color: var(--beige-dark);
+            font-weight: 700;
+        }
+
+        .calendar-day.selected {
+            background-color: var(--primary-gold);
+            color: white;
+        }
+
+        .calendar-day.has-event::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            width: 4px;
+            height: 4px;
+            background-color: var(--accent-gold);
+            border-radius: 50%;
+        }
+
+        .calendar-day.selected.has-event::after {
+            background-color: white;
+        }
+
+        .calendar-day.other-month {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        .event-dot {
+            width: 4px;
+            height: 4px;
+            background-color: var(--primary-gold);
+            border-radius: 50%;
+            margin-top: 2px;
+        }
+
+        .calendar-nav-btn {
+            background: var(--beige-light);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Detail Modal Overlay */
+        #detail-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        #detail-content {
+            background: var(--bg-color);
+            width: 100%;
+            max-width: 500px;
+            max-height: 90%;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 24px;
+            overflow-y: auto;
+            position: relative;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--beige-light);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        /* Loading Spinner */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--beige-dark);
+            border-top: 4px solid var(--primary-gold);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Settings Screen */
+        .settings-group {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .settings-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .settings-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--beige-dark);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .status-online { background: #E8F5E9; color: #2E7D32; }
+        .status-offline { background: #FFEBEE; color: #C62828; }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary-gold);
+            color: var(--primary-gold);
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+    <div class="spinner"></div>
+</div>
+
+<div id="app">
+    <header>
+        <div class="today-date" id="header-date">2026년 3월 27일 금요일</div>
+        <h1>기도노트</h1>
+    </header>
+
+    <!-- Home Screen -->
+    <main id="home-screen" class="screen active">
+        <div class="filter-container" id="category-filters">
+            <button class="filter-btn active" data-cat="전체">전체</button>
+            <button class="filter-btn" data-cat="개인">개인</button>
+            <button class="filter-btn" data-cat="가족">가족</button>
+            <button class="filter-btn" data-cat="모임">모임</button>
+            <button class="filter-btn" data-cat="지체">지체</button>
+            <button class="filter-btn" data-cat="직장">직장</button>
+            <button class="filter-btn" data-cat="나라">나라</button>
+        </div>
+
+        <div id="event-section">
+            <div class="section-title">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z"/></svg>
+                이번 주 이벤트
+            </div>
+            <div id="event-list"></div>
+        </div>
+
+        <div id="prayer-section">
+            <div class="section-title">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                기도 중인 제목
+            </div>
+            <div id="prayer-list"></div>
+        </div>
+    </main>
+
+    <!-- Add Screen -->
+    <div id="add-screen" class="screen">
+        <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 7L14 12L19 14L14 16L12 21L10 16L5 14L10 12L12 7Z"/></svg>
+            새로운 기도 제목
+        </div>
+        <div class="form-group">
+            <label>카테고리</label>
+            <div class="category-selector" id="add-cat-selector">
+                <button class="cat-btn active" data-cat="개인">개인</button>
+                <button class="cat-btn" data-cat="가족">가족</button>
+                <button class="cat-btn" data-cat="모임">모임</button>
+                <button class="cat-btn" data-cat="지체">지체</button>
+                <button class="cat-btn" data-cat="직장">직장</button>
+                <button class="cat-btn" data-cat="나라">나라</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>제목</label>
+            <input type="text" id="add-title" placeholder="기도 제목을 입력하세요">
+        </div>
+        <div class="form-group">
+            <label>상세 내용</label>
+            <textarea id="add-content" rows="4" placeholder="기도하고 싶은 내용을 자세히 적어보세요"></textarea>
+        </div>
+        <div class="form-group">
+            <label>기도 시작 날짜</label>
+            <input type="date" id="add-start-date">
+        </div>
+        <div class="form-group">
+            <label>이벤트 날짜 (선택)</label>
+            <div style="display: flex; gap: 8px;">
+                <input type="date" id="add-event-date" style="flex: 1.5;">
+                <input type="text" id="add-event-label" placeholder="예: 결혼식" style="flex: 1;">
+            </div>
+        </div>
+        <button class="btn-primary" id="save-btn">
+            <svg class="icon" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            기도 시작하기
+        </button>
+    </div>
+
+    <!-- Answered Screen -->
+    <div id="answered-screen" class="screen">
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-value" id="stat-total">0</span>
+                <span class="stat-label">총 기도</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-answered">0</span>
+                <span class="stat-label">응답 완료</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-count">0</span>
+                <span class="stat-label">누적 횟수</span>
+            </div>
+        </div>
+        <div class="section-title" style="color: var(--accent-gold);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 7L14 12L19 14L14 16L12 21L10 16L5 14L10 12L12 7Z"/></svg>
+            응답받은 기록
+        </div>
+        <div id="answered-list"></div>
+    </div>
+
+    <!-- Calendar Screen -->
+    <div id="calendar-screen" class="screen">
+        <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z"/></svg>
+            기도 캘린더
+        </div>
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <button class="calendar-nav-btn" id="prev-month">
+                    <svg class="icon" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                </button>
+                <div id="calendar-month-year" style="font-weight: 700; font-size: 1.1rem;">2024년 5월</div>
+                <button class="calendar-nav-btn" id="next-month">
+                    <svg class="icon" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </button>
+            </div>
+            <div class="calendar-grid" id="calendar-grid">
+                <!-- Days will be injected here -->
+            </div>
+        </div>
+        <div id="selected-date-events">
+            <div class="section-title" id="selected-date-title">선택된 날짜 이벤트</div>
+            <div id="day-event-list"></div>
+        </div>
+    </div>
+
+    <!-- Settings Screen -->
+    <div id="settings-screen" class="screen">
+        <div class="section-title">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            설정 및 동기화
+        </div>
+        <div class="settings-group">
+            <label class="settings-label">Google Apps Script 웹앱 URL</label>
+            <input type="text" id="gas-url-input" class="settings-input" placeholder="https://script.google.com/macros/s/.../exec">
+            
+            <label class="settings-label" style="margin-top: 15px;">보안 토큰 (Secret Token)</label>
+            <input type="password" id="gas-token-input" class="settings-input" placeholder="보안을 위해 사용할 토큰을 입력하세요">
+            
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px; margin-top: 10px;">
+                1. Google Sheets 생성 후 시트명을 <b>기도목록</b>으로 변경<br>
+                2. Apps Script 작성 및 '웹앱'으로 배포 (액세스: 모든 사용자)<br>
+                3. 배포된 URL과 설정한 보안 토큰을 위 칸에 입력하세요.
+            </p>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-primary" style="flex: 1;" onclick="saveGasUrl()">설정 저장</button>
+                <button class="btn-secondary" style="flex: 1;" onclick="testConnection()">연결 테스트</button>
+            </div>
+            
+            <div id="sync-status-container" style="margin-top: 20px; border-top: 1px solid var(--beige-dark); padding-top: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <span style="font-weight: 600; font-size: 0.9rem;">동기화 상태</span>
+                    <span id="sync-status-badge" class="status-badge status-offline">연결 안됨</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn-outline" onclick="fetchDataFromGAS()">데이터 불러오기</button>
+                    <button class="btn-outline" onclick="syncToGAS()">데이터 올리기</button>
+                </div>
+                <p id="last-sync-time" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; text-align: center;">
+                    마지막 동기화: 없음
+                </p>
+            </div>
+        </div>
+        
+        <div class="settings-group">
+            <label class="settings-label">데이터 관리</label>
+            <button class="btn-secondary" style="width: 100%; margin-bottom: 10px;" onclick="exportData()">데이터 백업 (JSON)</button>
+            <button class="btn-secondary" style="width: 100%; color: #C62828;" onclick="clearAllData()">모든 데이터 초기화</button>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" data-screen="home-screen">
+            <div class="nav-icon">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            </div>
+            <span>홈</span>
+        </div>
+        <div class="nav-item" data-screen="calendar-screen">
+            <div class="nav-icon">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10z"/></svg>
+            </div>
+            <span>달력</span>
+        </div>
+        <div class="nav-item" data-screen="add-screen">
+            <div class="nav-icon">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            </div>
+            <span>추가</span>
+        </div>
+        <div class="nav-item" data-screen="answered-screen">
+            <div class="nav-icon">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
+            </div>
+            <span>응답기록</span>
+        </div>
+        <div class="nav-item" data-screen="settings-screen">
+            <div class="nav-icon">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            </div>
+            <span>설정</span>
+        </div>
+    </nav>
+</div>
+
+<!-- Detail Overlay -->
+<div id="detail-overlay">
+    <div id="detail-content">
+        <button class="close-btn" id="close-detail">
+            <svg class="icon" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+        <div id="detail-body"></div>
+    </div>
+</div>
+
+<script>
+    // --- Data Management ---
+    let prayers = JSON.parse(localStorage.getItem('prayerNoteData')) || [];
+    let gasUrl = localStorage.getItem('scriptUrl') || '';
+    let gasToken = localStorage.getItem('secretToken') || '';
+    let lastSync = localStorage.getItem('prayerNoteLastSync') || '';
+    let currentFilter = '전체';
+    let calendarDate = new Date();
+    let selectedCalendarDate = new Date().toISOString().split('T')[0];
+
+    function showLoading(show) {
+        document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+    }
+
+    function saveData() {
+        localStorage.setItem('prayerNoteData', JSON.stringify(prayers));
+        if (gasUrl) {
+            syncToGAS();
+        }
+    }
+
+    let syncTimeout = null;
+    async function syncToGAS() {
+        const storedUrl = localStorage.getItem('scriptUrl');
+        const storedToken = localStorage.getItem('secretToken');
+        
+        if (!storedUrl || !storedToken) {
+            console.log('GAS Sync skipped: scriptUrl or secretToken missing in localStorage');
+            return;
+        }
+
+        gasUrl = storedUrl;
+        gasToken = storedToken;
+
+        // Debounce sync to improve performance
+        if (syncTimeout) clearTimeout(syncTimeout);
+        
+        syncTimeout = setTimeout(async () => {
+            console.log('--- GAS Sync (POST) Start ---');
+            console.log('URL:', gasUrl);
+            console.log('Data count:', prayers.length);
+
+            try {
+                // mode: 'no-cors' is used to bypass CORS preflight.
+                // Data is sent, but we can't read the response.
+                await fetch(gasUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    body: JSON.stringify({ 
+                        action: 'sync', 
+                        token: gasToken,
+                        data: prayers 
+                    })
+                });
+                
+                console.log('GAS Sync: Request sent.');
+                lastSync = new Date().toLocaleString();
+                localStorage.setItem('prayerNoteLastSync', lastSync);
+                updateSyncStatus(true);
+                // No success alert as requested
+            } catch (error) {
+                console.error('GAS Sync Error:', error);
+                updateSyncStatus(false);
+                alert('저장 실패: 네트워크 상태를 확인해주세요.');
+            }
+        }, 1000); // 1 second debounce
+    }
+
+    async function fetchDataFromGAS(silent = false) {
+        if (!gasUrl) {
+            renderHome();
+            return;
+        }
+        if (!silent) showLoading(true);
+        console.log('--- GAS Fetch Start ---');
+        try {
+            const fetchUrl = `${gasUrl}?action=get&token=${encodeURIComponent(gasToken)}&t=${Date.now()}`;
+            const response = await fetch(fetchUrl);
+            
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const result = await response.json();
+            console.log('GAS Fetch Result:', result.status);
+
+            if (result.status === 'success') {
+                prayers = result.data || [];
+                localStorage.setItem('prayerNoteData', JSON.stringify(prayers));
+                updateSyncStatus(true);
+                renderHome();
+                renderAnswered();
+                renderCalendar();
+            } else {
+                console.error('GAS Business Logic Error:', result.message);
+                updateSyncStatus(false);
+                renderHome(); 
+            }
+        } catch (error) {
+            console.error('GAS Fetch Network/Parsing Error:', error);
+            updateSyncStatus(false);
+            renderHome(); 
+        } finally {
+            if (!silent) showLoading(false);
+        }
+    }
+
+    async function testConnection() {
+        const url = document.getElementById('gas-url-input').value.trim();
+        const token = document.getElementById('gas-token-input').value.trim();
+        if (!url) return alert('URL을 먼저 입력해주세요.');
+        
+        showLoading(true);
+        try {
+            const response = await fetch(`${url}?action=get&token=${encodeURIComponent(token)}`);
+            const result = await response.json();
+            if (result.status === 'success') {
+                alert('연결 성공! 데이터를 성공적으로 불러왔습니다.');
+                updateSyncStatus(true);
+            } else {
+                alert('연결 실패: ' + (result.message || '알 수 없는 오류 (토큰 확인 필요)'));
+            }
+        } catch (error) {
+            console.error('Test Connection Error:', error);
+            alert('연결 실패: URL이 올바르지 않거나 보안 토큰이 틀렸을 수 있습니다.');
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function updateSyncStatus(online) {
+        const badge = document.getElementById('sync-status-badge');
+        const timeText = document.getElementById('last-sync-time');
+        if (online) {
+            badge.innerText = '연결됨';
+            badge.className = 'status-badge status-online';
+            const now = new Date().toLocaleString();
+            lastSync = now;
+            localStorage.setItem('prayerNoteLastSync', now);
+            timeText.innerText = `마지막 동기화: ${now}`;
+        } else {
+            badge.innerText = '오프라인 / 오류';
+            badge.className = 'status-badge status-offline';
+        }
+    }
+
+    function saveGasUrl() {
+        const url = document.getElementById('gas-url-input').value.trim();
+        const token = document.getElementById('gas-token-input').value.trim();
+        if (url && !url.startsWith('http')) {
+            alert('올바른 URL 형식이 아닙니다.');
+            return;
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('scriptUrl', url);
+        localStorage.setItem('secretToken', token);
+        
+        // Verification check
+        const savedUrl = localStorage.getItem('scriptUrl');
+        const savedToken = localStorage.getItem('secretToken');
+        
+        if (savedUrl === url && savedToken === token) {
+            gasUrl = url;
+            gasToken = token;
+            alert('설정이 성공적으로 저장되었습니다.');
+            if (gasUrl) fetchDataFromGAS();
+        } else {
+            alert('설정 저장 중 오류가 발생했습니다. 다시 시도해주세요.');
+        }
+    }
+
+    function exportData() {
+        const dataStr = JSON.stringify(prayers, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `prayer_note_backup_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+    }
+
+    function clearAllData() {
+        if (confirm('정말로 모든 데이터를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+            prayers = [];
+            localStorage.removeItem('prayerNoteData');
+            renderHome();
+            renderAnswered();
+            alert('모든 데이터가 초기화되었습니다.');
+        }
+    }
+
+    // --- Utils ---
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+    }
+
+    function getDDay(dateStr) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const target = new Date(dateStr);
+        target.setHours(0, 0, 0, 0);
+        const diff = target - today;
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        if (days === 0) return '오늘';
+        if (days > 0) return `${days}일 후`;
+        return `${Math.abs(days)}일 전`;
+    }
+
+    function isWithin7Days(dateStr) {
+        if (!dateStr) return false;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const target = new Date(dateStr);
+        target.setHours(0, 0, 0, 0);
+        const diff = target - today;
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        return days >= 0 && days <= 7;
+    }
+
+    function isToday(dateStr) {
+        if (!dateStr) return false;
+        const today = new Date().toISOString().split('T')[0];
+        return dateStr === today;
+    }
+
+    // --- UI Rendering ---
+    function renderHeaderDate() {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const date = d.getDate();
+        const weekDays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+        const weekDay = weekDays[d.getDay()];
+        
+        document.getElementById('header-date').innerText = `${year}년 ${month}월 ${date}일 ${weekDay}`;
+    }
+
+    function renderHome() {
+        const eventList = document.getElementById('event-list');
+        const prayerList = document.getElementById('prayer-list');
+        
+        const activePrayers = prayers.filter(p => p.status === '기도중');
+        const filteredPrayers = currentFilter === '전체' ? activePrayers : activePrayers.filter(p => p.category === currentFilter);
+
+        // Events
+        const upcomingEvents = activePrayers.filter(p => isWithin7Days(p.eventDate));
+        if (upcomingEvents.length > 0) {
+            document.getElementById('event-section').style.display = 'block';
+            eventList.innerHTML = upcomingEvents.map(p => `
+                <div class="card event-card" onclick="openDetail('${p.id}')">
+                    <div class="card-header">
+                        <span class="category-badge">${p.category}</span>
+                        <span class="event-dday">${getDDay(p.eventDate)}</span>
+                    </div>
+                    <div class="card-title">${p.eventLabel || '이벤트'}: ${p.title}</div>
+                </div>
+            `).join('');
+        } else {
+            document.getElementById('event-section').style.display = 'none';
+        }
+
+        // Prayer List
+        if (filteredPrayers.length === 0) {
+            prayerList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg class="icon" viewBox="0 0 24 24" style="width: 48px; height: 48px; opacity: 0.5;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 14h-3v3h-2v-3H8v-2h3v-3h2v3h3v2zm-3-7V3.5L18.5 9H13z"/></svg>
+                    </div>
+                    <p>기도 제목이 없습니다.<br>새로운 기도를 시작해보세요.</p>
+                </div>
+            `;
+        } else {
+            // Group by category if "전체" is selected
+            if (currentFilter === '전체') {
+                const categories = ['개인', '가족', '모임', '지체', '직장', '나라'];
+                prayerList.innerHTML = categories.map(cat => {
+                    const catPrayers = filteredPrayers.filter(p => p.category === cat);
+                    if (catPrayers.length === 0) return '';
+                    return `
+                        <div style="margin-top: 20px; font-size: 0.85rem; color: var(--text-muted); font-weight: 600;"># ${cat}</div>
+                        ${catPrayers.map(p => renderPrayerCard(p)).join('')}
+                    `;
+                }).join('');
+            } else {
+                prayerList.innerHTML = filteredPrayers.map(p => renderPrayerCard(p)).join('');
+            }
+        }
+    }
+
+    function renderPrayerCard(p) {
+        const isGold = p.prayCount >= 10;
+        const isSpecial = p.prayCount >= 30;
+        const isEventToday = isToday(p.eventDate);
+
+        return `
+            <div class="card ${isGold ? 'gold-border' : ''} ${isSpecial ? 'special-badge' : ''} ${isEventToday ? 'event-today' : ''}" 
+                 id="card-${p.id}"
+                 onclick="handleCardClick(event, '${p.id}')">
+                <div class="card-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="category-badge">${p.category}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">시작: ${formatDate(p.startDate)}</span>
+                        <span class="pray-trigger">
+                            <svg class="icon-inline" viewBox="0 0 24 24" style="pointer-events: none;"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                            <span class="pray-count" style="pointer-events: none; font-size: 0.8rem;">${p.prayCount}</span>
+                        </span>
+                    </div>
+                    ${isEventToday ? '<span style="color: #D32F2F; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 4px;"><svg class="icon-inline" viewBox="0 0 24 24" style="fill: #D32F2F;"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>오늘 이벤트</span>' : ''}
+                </div>
+                <div class="card-title">${p.title}</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">
+                    마지막 기도: ${p.lastPrayedDate ? formatDate(p.lastPrayedDate) : '없음'}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderAnswered() {
+        const list = document.getElementById('answered-list');
+        const answered = prayers.filter(p => p.status === '응답완료');
+        
+        // Stats
+        document.getElementById('stat-total').innerText = prayers.length;
+        document.getElementById('stat-answered').innerText = answered.length;
+        document.getElementById('stat-count').innerText = prayers.reduce((acc, p) => acc + p.prayCount, 0);
+
+        if (answered.length === 0) {
+            list.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg class="icon" viewBox="0 0 24 24" style="width: 48px; height: 48px; opacity: 0.5;"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    </div>
+                    <p>아직 응답받은 기록이 없습니다.<br>기도의 열매를 기다려보세요.</p>
+                </div>
+            `;
+        } else {
+            list.innerHTML = answered.map(p => `
+                <div class="card" style="border-left: 4px solid var(--primary-gold);" onclick="openDetail('${p.id}')">
+                    <div class="card-header">
+                        <span class="category-badge">${p.category}</span>
+                        <span style="color: var(--accent-gold); font-size: 0.8rem; font-weight: 600;">응답완료</span>
+                    </div>
+                    <div class="card-title">${p.title}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-main); margin: 8px 0; background: var(--beige-light); padding: 10px; border-radius: 8px;">
+                        <strong>응답 내용:</strong><br>${p.answerNote || '기록된 내용이 없습니다.'}
+                    </div>
+                    <div class="card-meta">
+                        <span>${formatDate(p.startDate)} → ${formatDate(p.answeredDate)}</span>
+                        <span class="pray-count"><svg class="icon-inline" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>${p.prayCount}회</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // --- Calendar Logic ---
+    function renderCalendar() {
+        const grid = document.getElementById('calendar-grid');
+        const monthYear = document.getElementById('calendar-month-year');
+        
+        const year = calendarDate.getFullYear();
+        const month = calendarDate.getMonth();
+        
+        monthYear.innerText = `${year}년 ${month + 1}월`;
+        
+        const firstDay = new Date(year, month, 1).getDay();
+        const lastDate = new Date(year, month + 1, 0).getDate();
+        
+        let html = '';
+        const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+        dayLabels.forEach(label => {
+            html += `<div class="calendar-day-label">${label}</div>`;
+        });
+        
+        // Empty slots for previous month
+        for (let i = 0; i < firstDay; i++) {
+            html += `<div class="calendar-day other-month"></div>`;
+        }
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        for (let date = 1; date <= lastDate; date++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+            const hasEvent = prayers.some(p => p.eventDate === dateStr && p.status === '기도중');
+            const isToday = dateStr === todayStr;
+            const isSelected = dateStr === selectedCalendarDate;
+            
+            html += `
+                <div class="calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${hasEvent ? 'has-event' : ''}" 
+                     onclick="selectCalendarDate('${dateStr}')">
+                    ${date}
+                </div>
+            `;
+        }
+        
+        grid.innerHTML = html;
+        renderSelectedDateEvents();
+    }
+
+    function selectCalendarDate(dateStr) {
+        selectedCalendarDate = dateStr;
+        renderCalendar();
+    }
+    window.selectCalendarDate = selectCalendarDate;
+
+    function renderSelectedDateEvents() {
+        const title = document.getElementById('selected-date-title');
+        const list = document.getElementById('day-event-list');
+        
+        title.innerText = `${formatDate(selectedCalendarDate)} 이벤트`;
+        
+        const dayEvents = prayers.filter(p => p.eventDate === selectedCalendarDate && p.status === '기도중');
+        
+        if (dayEvents.length === 0) {
+            list.innerHTML = `<div class="empty-state" style="padding: 20px;"><p>이 날짜에 예정된 이벤트가 없습니다.</p></div>`;
+        } else {
+            list.innerHTML = dayEvents.map(p => `
+                <div class="card event-card" onclick="openDetail('${p.id}')">
+                    <div class="card-header">
+                        <span class="category-badge">${p.category}</span>
+                        <span style="color: var(--accent-gold); font-size: 0.8rem; font-weight: 600;">${p.eventLabel}</span>
+                    </div>
+                    <div class="card-title">${p.title}</div>
+                </div>
+            `).join('');
+        }
+    }
+
+    document.getElementById('prev-month').addEventListener('click', () => {
+        calendarDate.setMonth(calendarDate.getMonth() - 1);
+        renderCalendar();
+    });
+
+    document.getElementById('next-month').addEventListener('click', () => {
+        calendarDate.setMonth(calendarDate.getMonth() + 1);
+        renderCalendar();
+    });
+
+    // --- Actions ---
+    function handleCardClick(event, id) {
+        console.log('Card interaction:', id, 'Target:', event.target);
+        
+        const card = document.getElementById(`card-${id}`);
+        const prayer = prayers.find(p => p.id === id);
+        
+        if (!prayer) return;
+
+        // 1. Check if the click was on the detail trigger (magnifying glass)
+        if (event.target.closest('.detail-trigger')) {
+            console.log('Detail trigger clicked');
+            event.stopPropagation();
+            openDetail(id);
+            return;
+        }
+
+        // 2. Check if the click was on the prayer icon/count (pray-trigger)
+        if (event.target.closest('.pray-trigger')) {
+            console.log('Pray trigger clicked - Incrementing');
+            event.stopPropagation();
+            
+            prayer.prayCount++;
+            prayer.lastPrayedDate = new Date().toISOString().split('T')[0];
+            saveData();
+            
+            // Animation for the whole card to show feedback
+            if (card) {
+                card.classList.add('animate-pray');
+                setTimeout(() => card.classList.remove('animate-pray'), 500);
+            }
+            
+            renderHome();
+            return;
+        }
+
+        // 3. Default card tap: Just visual feedback (animation)
+        console.log('Card body tapped - Visual feedback only');
+        if (card) {
+            card.classList.add('animate-pray');
+            setTimeout(() => card.classList.remove('animate-pray'), 500);
+        }
+    }
+    window.handleCardClick = handleCardClick;
+
+    // Override renderPrayerCard to include detail trigger
+    const originalRenderPrayerCard = renderPrayerCard;
+    renderPrayerCard = function(p) {
+        const isGold = p.prayCount >= 10;
+        const isSpecial = p.prayCount >= 30;
+        const isEventToday = isToday(p.eventDate);
+
+        return `
+            <div class="card ${isGold ? 'gold-border' : ''} ${isSpecial ? 'special-badge' : ''} ${isEventToday ? 'event-today' : ''}" 
+                 id="card-${p.id}"
+                 onclick="handleCardClick(event, '${p.id}')">
+                <div class="card-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="category-badge">${p.category}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">시작: ${formatDate(p.startDate)}</span>
+                        <span class="pray-trigger">
+                            <svg class="icon-inline" viewBox="0 0 24 24" style="pointer-events: none;"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                            <span class="pray-count" style="pointer-events: none; font-size: 0.8rem;">${p.prayCount}</span>
+                        </span>
+                    </div>
+                    <span class="detail-trigger">
+                        <svg class="icon-inline" viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: var(--primary-gold); pointer-events: none;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    </span>
+                </div>
+                <div class="card-title">${p.title}</div>
+                ${isEventToday ? '<div style="color: #D32F2F; font-size: 0.75rem; font-weight: 700; margin-top: 8px; display: flex; align-items: center; gap: 4px;"><svg class="icon-inline" viewBox="0 0 24 24" style="fill: #D32F2F;"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>오늘: ' + p.eventLabel + '</div>' : ''}
+            </div>
+        `;
+    };
+
+    function openDetail(id) {
+        console.log('Opening detail for:', id);
+        const p = prayers.find(p => p.id === id);
+        const body = document.getElementById('detail-body');
+        
+        if (!p) return;
+        
+        body.innerHTML = `
+            <div style="margin-bottom: 20px;">
+                <span class="category-badge">${p.category}</span>
+                <h2 style="margin: 10px 0 5px; color: var(--accent-gold);">${p.title}</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">생성일: ${formatDate(p.createdAt)}</p>
+            </div>
+
+            <div class="form-group">
+                <label>기도 내용</label>
+                <div style="background: white; padding: 16px; border-radius: 12px; border: 1px solid var(--beige-dark); white-space: pre-wrap;">${p.content || '내용이 없습니다.'}</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                <div>
+                    <label>시작일</label>
+                    <div style="font-size: 0.9rem;">${formatDate(p.startDate)}</div>
+                </div>
+                <div>
+                    <label>기도 횟수</label>
+                    <div style="font-size: 0.9rem; font-weight: 700; color: var(--accent-gold); display: flex; align-items: center; gap: 4px;">
+                        <svg class="icon-inline" viewBox="0 0 24 24" style="width: 16px; height: 16px;"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>${p.prayCount}회
+                    </div>
+                </div>
+            </div>
+
+            ${p.eventDate ? `
+                <div class="form-group">
+                    <label>이벤트: ${p.eventLabel}</label>
+                    <div style="font-size: 0.9rem;">${formatDate(p.eventDate)} (${getDDay(p.eventDate)})</div>
+                </div>
+            ` : ''}
+
+            ${p.status === '기도중' ? `
+                <div id="answer-form" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--beige-dark);">
+                    <div class="form-group">
+                        <label>응답 날짜</label>
+                        <input type="date" id="answer-date" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                    <div class="form-group">
+                        <label>응답 내용 / 감사 메모</label>
+                        <textarea id="answer-note" rows="3" placeholder="어떻게 응답받으셨나요?"></textarea>
+                    </div>
+                    <button class="btn-primary" onclick="submitAnswer('${p.id}')">
+                        <svg class="icon" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+                        응답 저장하기
+                    </button>
+                </div>
+                <button class="btn-primary" id="show-answer-btn" style="background-color: #4CAF50; box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);" onclick="document.getElementById('answer-form').style.display='block'; this.style.display='none'">
+                    <svg class="icon" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    응답받았어요!
+                </button>
+            ` : `
+                <div class="form-group">
+                    <label>응답 내용</label>
+                    <div style="background: #FFF9E6; padding: 16px; border-radius: 12px; border: 1px solid #FFE082; white-space: pre-wrap;">${p.answerNote}</div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;">응답일: ${formatDate(p.answeredDate)}</p>
+                </div>
+            `}
+
+            <div style="display: flex; gap: 8px; margin-top: 24px;">
+                <button class="btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;" id="edit-btn" onclick="toggleEditMode('${p.id}')">
+                    <svg class="icon-inline" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>수정
+                </button>
+                <button class="btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="deletePrayer('${p.id}')">
+                    <svg class="icon-inline" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>삭제
+                </button>
+                <button class="btn-secondary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="closeDetail()">
+                    <svg class="icon-inline" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>닫기
+                </button>
+            </div>
+        `;
+        
+        document.getElementById('detail-overlay').style.display = 'flex';
+    }
+
+    function toggleEditMode(id) {
+        const p = prayers.find(p => p.id === id);
+        const body = document.getElementById('detail-body');
+        const isEditing = document.getElementById('edit-save-btn');
+
+        if (!isEditing) {
+            // Switch to Edit Mode
+            body.innerHTML = `
+                <div class="section-title">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    기도 제목 수정
+                </div>
+                <div class="form-group">
+                    <label>카테고리</label>
+                    <select id="edit-category">
+                        <option value="개인" ${p.category === '개인' ? 'selected' : ''}>개인</option>
+                        <option value="가족" ${p.category === '가족' ? 'selected' : ''}>가족</option>
+                        <option value="모임" ${p.category === '모임' ? 'selected' : ''}>모임</option>
+                        <option value="지체" ${p.category === '지체' ? 'selected' : ''}>지체</option>
+                        <option value="직장" ${p.category === '직장' ? 'selected' : ''}>직장</option>
+                        <option value="나라" ${p.category === '나라' ? 'selected' : ''}>나라</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>제목</label>
+                    <input type="text" id="edit-title" value="${p.title}">
+                </div>
+                <div class="form-group">
+                    <label>상세 내용</label>
+                    <textarea id="edit-content" rows="4">${p.content || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>기도 시작 날짜</label>
+                    <input type="date" id="edit-start-date" value="${p.startDate}">
+                </div>
+                <div class="form-group">
+                    <label>이벤트 날짜</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="date" id="edit-event-date" value="${p.eventDate || ''}" style="flex: 1.5;">
+                        <input type="text" id="edit-event-label" value="${p.eventLabel || ''}" placeholder="라벨" style="flex: 1;">
+                    </div>
+                </div>
+                <button class="btn-primary" id="edit-save-btn" onclick="saveEdit('${p.id}')" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg class="icon" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>수정 완료
+                </button>
+                <button class="btn-secondary" onclick="openDetail('${p.id}')" style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;">
+                    <svg class="icon" viewBox="0 0 24 24" style="width: 18px; height: 18px;"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>취소
+                </button>
+            `;
+        }
+    }
+
+    function saveEdit(id) {
+        const p = prayers.find(p => p.id === id);
+        p.category = document.getElementById('edit-category').value;
+        p.title = document.getElementById('edit-title').value;
+        p.content = document.getElementById('edit-content').value;
+        p.startDate = document.getElementById('edit-start-date').value;
+        p.eventDate = document.getElementById('edit-event-date').value;
+        p.eventLabel = document.getElementById('edit-event-label').value;
+
+        if (!p.title) return alert('제목을 입력해주세요.');
+
+        saveData();
+        openDetail(id);
+        renderHome();
+        renderAnswered();
+    }
+
+    function closeDetail() {
+        document.getElementById('detail-overlay').style.display = 'none';
+    }
+    window.openDetail = openDetail;
+    window.closeDetail = closeDetail;
+
+    function submitAnswer(id) {
+        const date = document.getElementById('answer-date').value;
+        const note = document.getElementById('answer-note').value;
+        
+        if (!date) return alert('응답 날짜를 선택해주세요.');
+        
+        const p = prayers.find(p => p.id === id);
+        p.status = '응답완료';
+        p.answeredDate = date;
+        p.answerNote = note;
+        
+        saveData();
+        closeDetail();
+        renderHome();
+        renderAnswered();
+    }
+
+    function deletePrayer(id) {
+        if (confirm('이 기도 제목을 삭제하시겠습니까?')) {
+            prayers = prayers.filter(p => p.id !== id);
+            saveData();
+            closeDetail();
+            renderHome();
+            renderAnswered();
+        }
+    }
+
+    // --- Navigation Logic ---
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const screenId = item.getAttribute('data-screen');
+            
+            // Update Nav UI
+            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+            
+            // Update Screen UI
+            document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            
+            // Refresh Data if needed
+            if (screenId === 'home-screen') renderHome();
+            if (screenId === 'calendar-screen') renderCalendar();
+            if (screenId === 'answered-screen') renderAnswered();
+            if (screenId === 'settings-screen') {
+                document.getElementById('gas-url-input').value = gasUrl;
+                document.getElementById('gas-token-input').value = gasToken;
+                if (lastSync) document.getElementById('last-sync-time').innerText = `마지막 동기화: ${lastSync}`;
+            }
+        });
+    });
+
+    // --- Add Screen Logic ---
+    let selectedAddCat = '개인';
+    document.querySelectorAll('#add-cat-selector .cat-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#add-cat-selector .cat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedAddCat = btn.getAttribute('data-cat');
+        });
+    });
+
+    document.getElementById('save-btn').addEventListener('click', () => {
+        const title = document.getElementById('add-title').value;
+        const content = document.getElementById('add-content').value;
+        const startDate = document.getElementById('add-start-date').value;
+        const eventDate = document.getElementById('add-event-date').value;
+        const eventLabel = document.getElementById('add-event-label').value;
+
+        if (!title) return alert('제목을 입력해주세요.');
+        if (!startDate) return alert('시작 날짜를 선택해주세요.');
+
+        const newPrayer = {
+            id: Date.now().toString(),
+            category: selectedAddCat,
+            title,
+            content,
+            startDate,
+            eventDate,
+            eventLabel,
+            status: '기도중',
+            answeredDate: null,
+            answerNote: null,
+            prayCount: 0,
+            lastPrayedDate: null,
+            createdAt: new Date().toISOString()
+        };
+
+        prayers.unshift(newPrayer);
+        saveData();
+
+        // Reset Form
+        document.getElementById('add-title').value = '';
+        document.getElementById('add-content').value = '';
+        document.getElementById('add-event-date').value = '';
+        document.getElementById('add-event-label').value = '';
+        
+        // Go to Home
+        document.querySelector('.nav-item[data-screen="home-screen"]').click();
+    });
+
+    // --- Filter Logic ---
+    document.querySelectorAll('#category-filters .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#category-filters .filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilter = btn.getAttribute('data-cat');
+            renderHome();
+        });
+    });
+
+    // --- Init ---
+    window.onload = () => {
+        renderHeaderDate();
+        document.getElementById('add-start-date').value = new Date().toISOString().split('T')[0];
+        
+        // Render home immediately to satisfy "바로 홈 화면으로 시작"
+        renderHome();
+        
+        // Check if both scriptUrl and secretToken are stored
+        const storedUrl = localStorage.getItem('scriptUrl');
+        const storedToken = localStorage.getItem('secretToken');
+        
+        if (storedUrl && storedToken) {
+            gasUrl = storedUrl;
+            gasToken = storedToken;
+            fetchDataFromGAS(true); // Silent fetch on startup
+        } else {
+            // First time setup notice - only if not already configured
+            setTimeout(() => {
+                if (confirm('Google Sheets와 연동하여 데이터를 안전하게 보관하시겠습니까? 설정 화면으로 이동합니다.')) {
+                    document.querySelector('.nav-item[data-screen="settings-screen"]').click();
+                }
+            }, 1000);
+        }
+        
+        if (lastSync) {
+            document.getElementById('last-sync-time').innerText = `마지막 동기화: ${lastSync}`;
+        }
+    };
+
+    document.getElementById('close-detail').addEventListener('click', closeDetail);
+    document.getElementById('detail-overlay').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('detail-overlay')) closeDetail();
+    });
+
+</script>
+
+</body>
+</html>
 
