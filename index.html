@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style"       content="default">
 <meta name="apple-mobile-web-app-title"       content="기도노트">
 
-    <title>기도노트 - Prayer Note</title>
+ <title>기도노트 - Prayer Note</title>
     <style>
         :root {
             --bg-color: #FDFBF7;
@@ -184,7 +184,7 @@
         }
 
         .card.expanded .card-content-expanded {
-            max-height: 1000px; /* Large enough to contain content */
+            max-height: 9999px; /* Very large to contain any content */
             opacity: 1;
             margin-top: 12px;
             padding-top: 12px;
@@ -1439,7 +1439,7 @@
                 ${isEventToday ? '<div style="color: #D32F2F; font-size: 0.75rem; font-weight: 700; margin-top: 8px; display: flex; align-items: center; gap: 4px;"><svg class="icon-inline" viewBox="0 0 24 24" style="fill: #D32F2F;"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>오늘: ' + p.eventLabel + '</div>' : ''}
                 
                 <div class="card-content-expanded">
-                    <div style="font-size: 0.85rem; line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; margin-bottom: 12px;">${p.content || '내용이 없습니다.'}</div>
+                    <div style="font-size: 0.85rem; line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; margin-bottom: 12px;">${p.content || '내용이 없습니다.'}</div>
                     <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
                         <span>기도 시작일: ${formatDate(p.startDate)}</span>
                         ${p.eventDate ? `<span>이벤트: ${formatDate(p.eventDate)} (${p.eventLabel})</span>` : ''}
