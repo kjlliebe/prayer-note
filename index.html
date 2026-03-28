@@ -155,12 +155,33 @@
             margin-bottom: 12px;
             box-shadow: var(--shadow);
             border: 1px solid transparent;
-            transition: transform 0.2s, border-color 0.3s, box-shadow 0.3s;
+            transition: transform 0.2s, border-color 0.3s, box-shadow 0.3s, background-color 0.3s;
             position: relative;
             overflow: hidden;
             cursor: pointer; /* Critical for mobile click events */
             -webkit-tap-highlight-color: transparent; /* Remove gray highlight on tap */
             user-select: none; /* Prevent text selection on rapid tapping */
+        }
+
+        .card.expanded {
+            background-color: #fffdf5;
+            border-color: var(--primary-gold);
+            box-shadow: 0 8px 20px rgba(212, 175, 55, 0.15);
+        }
+
+        .card-content-expanded {
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+
+        .card.expanded .card-content-expanded {
+            max-height: 1000px; /* Large enough to contain content */
+            opacity: 1;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--beige-dark);
         }
 
         .card:active {
@@ -881,13 +902,17 @@
 
 <script>
     // --- Data Management ---
-    let prayers = JSON.parse(localStorage.getItem('prayerNoteData')) || [];
+    let prayers = (JSON.parse(localStorage.getItem('prayerNoteData')) || []).map(p => ({
+        ...p,
+        id: String(p.id).trim()
+    }));
     let gasUrl = localStorage.getItem('scriptUrl') || '';
     let gasToken = localStorage.getItem('secretToken') || '';
     let lastSync = localStorage.getItem('prayerNoteLastSync') || '';
     let currentFilter = '전체';
     let calendarDate = new Date();
     let selectedCalendarDate = new Date().toISOString().split('T')[0];
+    let expandedCardId = null;
 
     function showLoading(show) {
         document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
@@ -1358,7 +1383,23 @@
 
     function handleCardClick(event, id) {
         console.log('Card body tapped:', id);
-        // Removed animation effect as requested
+        const card = document.getElementById(`card-${id}`);
+        if (!card) return;
+
+        // If clicking the same card, toggle it
+        if (expandedCardId === String(id)) {
+            card.classList.remove('expanded');
+            expandedCardId = null;
+        } else {
+            // Close previously expanded card
+            if (expandedCardId) {
+                const prevCard = document.getElementById(`card-${expandedCardId}`);
+                if (prevCard) prevCard.classList.remove('expanded');
+            }
+            // Expand new card
+            card.classList.add('expanded');
+            expandedCardId = String(id);
+        }
     }
     window.handleCardClick = handleCardClick;
 
@@ -1368,9 +1409,10 @@
         const isGold = p.prayCount >= 10;
         const isSpecial = p.prayCount >= 30;
         const isEventToday = isToday(p.eventDate);
+        const isExpanded = expandedCardId === String(p.id);
 
         return `
-            <div class="card ${isGold ? 'gold-border' : ''} ${isSpecial ? 'special-badge' : ''} ${isEventToday ? 'event-today' : ''}" 
+            <div class="card ${isGold ? 'gold-border' : ''} ${isSpecial ? 'special-badge' : ''} ${isEventToday ? 'event-today' : ''} ${isExpanded ? 'expanded' : ''}" 
                  id="card-${p.id}"
                  onclick="handleCardClick(event, '${p.id}')">
                 <div class="card-header">
@@ -1388,6 +1430,14 @@
                 </div>
                 <div class="card-title">${p.title}</div>
                 ${isEventToday ? '<div style="color: #D32F2F; font-size: 0.75rem; font-weight: 700; margin-top: 8px; display: flex; align-items: center; gap: 4px;"><svg class="icon-inline" viewBox="0 0 24 24" style="fill: #D32F2F;"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>오늘: ' + p.eventLabel + '</div>' : ''}
+                
+                <div class="card-content-expanded">
+                    <div style="font-size: 0.85rem; line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; margin-bottom: 12px;">${p.content || '내용이 없습니다.'}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
+                        <span>기도 시작일: ${formatDate(p.startDate)}</span>
+                        ${p.eventDate ? `<span>이벤트: ${formatDate(p.eventDate)} (${p.eventLabel})</span>` : ''}
+                    </div>
+                </div>
             </div>
         `;
     };
